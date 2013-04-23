@@ -1142,7 +1142,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		Scanner in = new Scanner(System.in);
 		String input;
 		byte[] rdata;
-		LinkedList<byte[]> hashs = new LinkedList<>();
+		HashMap<String, LinkedList<byte[]>> map = new HashMap<String, LinkedList<byte[]>>();
 		while(!terminate){
 			input = in.nextLine();
 
@@ -1156,7 +1156,10 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 				}else if(protocol_mode == 3){
 					dataU.setUsingSecSharing(true);
 				}
-
+				if(!map.containsKey(sb.toString())){
+					LinkedList<byte[]> hashs = new LinkedList<byte[]>();
+					map.put(sb.toString(), hashs);
+				}
 				System.out.println("DataUnit '" + sb.toString() + "' selected!");
 			}else{
 
@@ -1205,21 +1208,25 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 							long acMil = System.currentTimeMillis();
 
 							byte[] hash = localDS.write(dataU, value);
-							hashs.addFirst(hash);
+							LinkedList<byte[]> current = map.get(dataU.getRegId());
+							current.addFirst(hash);
+							map.put(dataU.getRegId(), current);
+							//hashs.addFirst(hash);
 							long tempo = System.currentTimeMillis() - acMil;
 							System.out.println("I'm finished write -> " + Long.toString(tempo) + " milis");
 						} catch (Exception ex) {
 							ex.printStackTrace();
 						}
-					}else if(input.substring(0, 5).equals("read_m") && input.split(" ").length > 0){
-						StringBuilder sb = new StringBuilder(input.substring(6));
+					}else if(input.substring(0, 6).equals("read_m") && input.split(" ").length > 0){
+						StringBuilder sb = new StringBuilder(input.substring(7));
 						int ver = new Integer(sb.toString());
 						System.out.println("readm: " + ver);
 						System.out.println("I'm reading");
 						try{
 							dataU.clearAllCaches();
 							long acMil = System.currentTimeMillis();
-							rdata = localDS.readMatching(dataU, hashs.get(ver));
+							LinkedList<byte[]> current = map.get(dataU.getRegId());
+							rdata = localDS.readMatching(dataU, current.get(ver));
 							long tempo = System.currentTimeMillis() - acMil;
 							System.out.println("I'm finished read -> " + Long.toString(tempo) + " milis");
 							if (rdata != null) {
