@@ -1121,7 +1121,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		System.out.println("       write 'data'   - write a new version in the selected container");
 		System.out.println("       read           - read the last version of the selected container");
 		System.out.println("       delete         - delete all the files in the selected container");
-		System.out.println("       read_m 'hash'  - read the version that match with 'hash' in the selected container");
+		System.out.println("       read_m 'num'   - read old versions. If 'num' = 0 read the last version");
 		System.out.println();
 		boolean useClouds = true;
 		if(new Integer(args[2]) == 1){
