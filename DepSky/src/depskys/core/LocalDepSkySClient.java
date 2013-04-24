@@ -392,7 +392,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	 * 
 	 * @param reg - Data Unit
 	 */
-	public void deleteContainer(DepSkySDataUnit reg){
+	public void deleteContainer(DepSkySDataUnit reg) throws Exception{
 
 		CloudRepliesControlSet rcs = null;
 		try {
@@ -1171,10 +1171,12 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 					if(dataU != null){
 						if(input.equals("delete")){
-
-							localDS.deleteContainer(dataU);
-							System.out.println("I'm finished delete");
-
+							try {
+								localDS.deleteContainer(dataU);
+								System.out.println("I'm finished delete");
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
 						}else if(input.equals("read")){
 							System.out.println("I'm reading");
 							try{
