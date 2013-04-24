@@ -1,3 +1,3 @@
 #!/bin/sh
 
-java -cp bin depskys.clouds.drivers.localStorageService.ServerThread
+java -cp bin:lib/DepSkyDependencies.jar depskys.clouds.drivers.localStorageService.ServerThread
