@@ -2,5 +2,14 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/AmazonAccess.jar"/>
+	<classpathentry kind="lib" path="lib/azure-common-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/azureblob-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/commons-io-1.4.jar"/>
+	<classpathentry kind="lib" path="lib/DepSkyDependencies.jar"/>
+	<classpathentry kind="lib" path="lib/GoogleSAccess.jar"/>
+	<classpathentry kind="lib" path="lib/JReedSolEC.jar"/>
+	<classpathentry kind="lib" path="lib/NewPVSS.jar"/>
+	<classpathentry kind="lib" path="lib/RackAzureAccess.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

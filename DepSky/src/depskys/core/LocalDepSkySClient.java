@@ -96,10 +96,10 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			try {
 				credentials = readCredentials();
 			} catch (FileNotFoundException e) {
-				System.out.println("O ficheiro de configuração não existe!");
+				System.out.println("accounts.properties file dosen't exist!");
 				e.printStackTrace();
 			} catch (ParseException e) {
-				System.out.println("O ficheiro de configuração está mal configurado!");		
+				System.out.println("accounts.properties misconfigured!");		
 				e.printStackTrace();
 			}
 			this.drivers = new IDepSkySDriver[4];
@@ -128,7 +128,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		this.decoder = new ReedSolDecoder(2, 2, 8);
 
 		if(!startDrivers()){
-			System.out.println("Erro na conexão");
+			System.out.println("Connection Error!");
 		}	
 	}
 
@@ -299,12 +299,6 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 						|| r.vNumber == null || r.reg == null) {
 					nullResponses++;
 					//Fault check #1
-					if (nullResponses > N - F) {
-						throw new Exception("READ ERROR: DepSky-S DataUnit does not exist or client is offline (internet connection failed)");
-					} else if (nullResponses > F) {
-						//System.out.println(r.response + "  \n" + r.type + "  \n" + r.vNumber + "  \n" + r.reg.toString());
-						throw new Exception("READ ERROR: at least f + 1 clouds failed");
-					}
 				} else {
 					Long maxVersionFound = r.reg.getMaxVersion();
 					//process replies
@@ -328,7 +322,14 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 					}
 				}
 			}//for replies
-
+			
+			if (nullResponses >= N - F) {
+				throw new Exception("READ ERROR: DepSky-S DataUnit does not exist or client is offline (internet connection failed)");
+			} else if (nullResponses > F) {
+				//System.out.println(r.response + "  \n" + r.type + "  \n" + r.vNumber + "  \n" + r.reg.toString());
+				throw new Exception("READ ERROR: at least f + 1 clouds failed.");
+			}
+			
 			Share[] keyshares = new Share[N];
 			Map<String, byte[]> erasurec = new HashMap<>();
 			if(reg.isErsCodes() || reg.isSecSharing() || reg.isPVSS()){
@@ -635,7 +636,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			rcs.waitReplies.release();
 			return;
 		}
-		
+
 		//wait 4 replies when is about the start of the connections with the clouds and the delete operation
 		if (rcs.replies.size() > N - F && reply.protoOp != DepSkySManager.WRITE_PROTO) {
 			rcs.waitReplies.release();
@@ -1116,136 +1117,139 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	}
 
 	public static void main(String[] args) {
-		System.out.println("USAGE:  commands             funtion");
-		System.out.println("       pick_du 'name' - change the container");
-		System.out.println("       write 'data'   - write a new version in the selected container");
-		System.out.println("       read           - read the last version of the selected container");
-		System.out.println("       delete         - delete all the files in the selected container");
-		System.out.println("       read_m 'num'   - read old versions. If 'num' = 0 read the last version");
-		System.out.println();
-		boolean useClouds = true;
-		if(new Integer(args[2]) == 1){
-			useClouds = false;
-		}			
-		LocalDepSkySClient localDS = new LocalDepSkySClient(new Integer(args[0]), useClouds);
-		DepSkySDataUnit dataU = null;
-		int protocol_mode = 0;
-		if(args[1].equals("1")){
-			protocol_mode = 1;
-		}else if(args[1].equals("2")){
-			protocol_mode = 2;
-		}else if(args[1].equals("3")){
-			protocol_mode = 3;
-		}
+		if(new Integer(args[0]) <= 6 && new Integer(args[0]) >= 0 &&
+		   new Integer(args[1]) <= 3 && new Integer(args[1]) >= 0 &&	
+	       new Integer(args[2]) <= 1 && new Integer(args[2]) >= 0){
 
-		boolean terminate = false;
-		Scanner in = new Scanner(System.in);
-		String input;
-		byte[] rdata;
-		HashMap<String, LinkedList<byte[]>> map = new HashMap<String, LinkedList<byte[]>>();
-		while(!terminate){
-			input = in.nextLine();
+			System.out.println("USAGE:  commands             function");
+			System.out.println("       pick_du 'name' - change the container");
+			System.out.println("       write 'data'   - write a new version in the selected container");
+			System.out.println("       read           - read the last version of the selected container");
+			System.out.println("       delete         - delete all the files in the selected container");
+			System.out.println("       read_m 'num'   - read old versions. If 'num' = 0 read the last version");
+			System.out.println();
+			boolean useClouds = true;
+			if(new Integer(args[2]) == 1){
+				useClouds = false;
+			}
+			
+			LocalDepSkySClient localDS = new LocalDepSkySClient(new Integer(args[0]), useClouds);
+			DepSkySDataUnit dataU = null;
+			int protocol_mode = 0;
+			if(args[1].equals("1")){
+				protocol_mode = 1;
+			}else if(args[1].equals("2")){
+				protocol_mode = 2;
+			}else if(args[1].equals("3")){
+				protocol_mode = 3;
+			}
 
-			if(input.length() > 7 && input.substring(0, 7).equals("pick_du") && input.split(" ").length > 0){
-				StringBuilder sb = new StringBuilder(input.substring(8));
-				dataU = new DepSkySDataUnit(sb.toString());
-				if(protocol_mode == 1){
-					dataU.setUsingPVSS(true);
-				}else if(protocol_mode == 2){
-					dataU.setUsingErsCodes(true);
-				}else if(protocol_mode == 3){
-					dataU.setUsingSecSharing(true);
-				}
-				if(!map.containsKey(sb.toString())){
-					LinkedList<byte[]> hashs = new LinkedList<byte[]>();
-					map.put(sb.toString(), hashs);
-				}
-				System.out.println("DataUnit '" + sb.toString() + "' selected!");
-			}else{
+			boolean terminate = false;
+			Scanner in = new Scanner(System.in);
+			String input;
+			byte[] rdata;
+			HashMap<String, LinkedList<byte[]>> map = new HashMap<String, LinkedList<byte[]>>();
+			while(!terminate){
+				input = in.nextLine();
 
-				if(dataU != null){
-					if(input.equals("delete")){
-
-						localDS.deleteContainer(dataU);
-						System.out.println("I'm finished delete");
-
-					}else if(input.equals("read")){
-						System.out.println("I´m reading");
-						try{
-							dataU.clearAllCaches();
-							long acMil = System.currentTimeMillis();
-							rdata = localDS.read(dataU);
-							long tempo = System.currentTimeMillis() - acMil;
-							System.out.println("I'm finished read -> " + Long.toString(tempo) + " milis");
-							if (rdata != null) {
-								System.out.println("READ RESULT = " + new String(rdata));
-							}
-							System.out.println("finish READ");
-						} catch (Exception ex) {
-							ex.printStackTrace();
-						}
-						System.out.println("I'm finished read");
-
-					}else if(input.substring(0, 5).equals("write") && input.split(" ").length > 0){
-						StringBuilder sb = new StringBuilder(input.substring(6));
-						System.out.println("WRITING: " + sb);
-						File file = new File (sb.toString());
-						byte[] value = null;
-						if(file.exists()){
-							FileInputStream reader;
-							try {
-								reader = new FileInputStream(file);
-								value = IOUtils.toByteArray(reader);
-							} catch (FileNotFoundException e) {
-								e.printStackTrace();
-							} catch (IOException e) {
-								e.printStackTrace();
-							}
-						}else{
-							value = sb.toString().getBytes();
-						}
-						try {
-							long acMil = System.currentTimeMillis();
-
-							byte[] hash = localDS.write(dataU, value);
-							LinkedList<byte[]> current = map.get(dataU.getRegId());
-							current.addFirst(hash);
-							map.put(dataU.getRegId(), current);
-							//hashs.addFirst(hash);
-							long tempo = System.currentTimeMillis() - acMil;
-							System.out.println("I'm finished write -> " + Long.toString(tempo) + " milis");
-						} catch (Exception ex) {
-							ex.printStackTrace();
-						}
-					}else if(input.substring(0, 6).equals("read_m") && input.split(" ").length > 0){
-						StringBuilder sb = new StringBuilder(input.substring(7));
-						int ver = new Integer(sb.toString());
-						System.out.println("readm: " + ver);
-						System.out.println("I'm reading");
-						try{
-							dataU.clearAllCaches();
-							long acMil = System.currentTimeMillis();
-							LinkedList<byte[]> current = map.get(dataU.getRegId());
-							rdata = localDS.readMatching(dataU, current.get(ver));
-							long tempo = System.currentTimeMillis() - acMil;
-							System.out.println("I'm finished read -> " + Long.toString(tempo) + " milis");
-							if (rdata != null) {
-								System.out.println("READ RESULT = " + new String(rdata));
-							}
-							System.out.println("finish READ");
-						} catch (Exception ex) {
-							ex.printStackTrace();
-						}
-						System.out.println("I'm finished read");
-
-					}else{
-						System.out.println("Comando inválido!");
+				if(input.length() > 7 && input.substring(0, 7).equals("pick_du") && input.split(" ").length > 0){
+					StringBuilder sb = new StringBuilder(input.substring(8));
+					dataU = new DepSkySDataUnit(sb.toString());
+					if(protocol_mode == 1){
+						dataU.setUsingPVSS(true);
+					}else if(protocol_mode == 2){
+						dataU.setUsingErsCodes(true);
+					}else if(protocol_mode == 3){
+						dataU.setUsingSecSharing(true);
 					}
+					if(!map.containsKey(sb.toString())){
+						LinkedList<byte[]> hashs = new LinkedList<byte[]>();
+						map.put(sb.toString(), hashs);
+					}
+					System.out.println("DataUnit '" + sb.toString() + "' selected!");
 				}else{
-					System.out.println("You need do pick a container to use. use the command pick_du.");
+
+					if(dataU != null){
+						if(input.equals("delete")){
+
+							localDS.deleteContainer(dataU);
+							System.out.println("I'm finished delete");
+
+						}else if(input.equals("read")){
+							System.out.println("I'm reading");
+							try{
+								dataU.clearAllCaches();
+								long acMil = System.currentTimeMillis();
+								rdata = localDS.read(dataU);
+								long tempo = System.currentTimeMillis() - acMil;
+								System.out.println("I'm finished read -> " + Long.toString(tempo) + " milis");
+								if (rdata != null) {
+									System.out.println("READ RESULT = " + new String(rdata));
+								}
+							} catch (Exception ex) {
+								ex.printStackTrace();
+							}
+
+						}else if(input.substring(0, 5).equals("write") && input.split(" ").length > 0){
+							StringBuilder sb = new StringBuilder(input.substring(6));
+							System.out.println("WRITING: " + sb);
+							File file = new File (sb.toString());
+							byte[] value = null;
+							if(file.exists()){
+								FileInputStream reader;
+								try {
+									reader = new FileInputStream(file);
+									value = IOUtils.toByteArray(reader);
+								} catch (FileNotFoundException e) {
+									e.printStackTrace();
+								} catch (IOException e) {
+									e.printStackTrace();
+								}
+							}else{
+								value = sb.toString().getBytes();
+							}
+							try {
+								long acMil = System.currentTimeMillis();
+
+								byte[] hash = localDS.write(dataU, value);
+								LinkedList<byte[]> current = map.get(dataU.getRegId());
+								current.addFirst(hash);
+								map.put(dataU.getRegId(), current);
+								long tempo = System.currentTimeMillis() - acMil;
+								System.out.println("I'm finished write -> " + Long.toString(tempo) + " milis");
+							} catch (Exception ex) {
+								ex.printStackTrace();
+							}
+						}else if(input.substring(0, 6).equals("read_m") && input.split(" ").length > 0){
+							StringBuilder sb = new StringBuilder(input.substring(7));
+							int ver = new Integer(sb.toString());
+							System.out.println("I'm reading");
+							try{
+								dataU.clearAllCaches();
+								long acMil = System.currentTimeMillis();
+								LinkedList<byte[]> current = map.get(dataU.getRegId());
+								rdata = localDS.readMatching(dataU, current.get(ver));
+								long tempo = System.currentTimeMillis() - acMil;
+								System.out.println("I'm finished read -> " + Long.toString(tempo) + " milis");
+								if (rdata != null) {
+									System.out.println("READ RESULT = " + new String(rdata));
+								}
+							} catch (Exception ex) {
+								ex.printStackTrace();
+							}
+
+						}else{
+							System.out.println("Comando inválido!");
+						}
+					}else{
+						System.out.println("You need do pick a container to use. use the command pick_du.");
+					}
 				}
 			}
+			in.close();
+		}else{
+			System.out.println("Invalid arguments!");
+			System.out.println("Please see the documentation at https://code.google.com/p/depsky/wiki/DepSky.");
 		}
-		in.close();
 	}
 }
