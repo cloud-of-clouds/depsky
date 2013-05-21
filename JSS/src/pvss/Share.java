@@ -11,10 +11,7 @@
 package pvss;
 
 import java.io.ByteArrayOutputStream;
-import java.io.Externalizable;
 import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 import java.io.Serializable;
 import java.math.BigInteger;
 
@@ -22,19 +19,18 @@ import java.math.BigInteger;
  *
  * @author neves
  */
-public class Share implements Externalizable {
+public class Share implements Serializable {
     
     private int index;
+    private BigInteger interpolationPoint;
     private BigInteger encryptedShare;
     private BigInteger share;
     private BigInteger proofc;
     private BigInteger proofr;
     
     private byte[] U; //for general secret sharing
-    
-    public Share(){
-    }
-    
+
+
     /** Creates a new instance of Share */
     public Share(int index, BigInteger encryptedShare, BigInteger share,
             BigInteger proofc, BigInteger proofr, byte[] U) {
@@ -48,90 +44,22 @@ public class Share implements Externalizable {
         this.U = U;
     }
     
-    
-    public void writeExternal(ObjectOutput out)
-                   throws IOException{
-        //System.out.println("CHAMOU writeExternal");
-        
-        /*out.writeInt(index);
-        out.writeUTF(encryptedShare.toString());
-        out.writeUTF(share.toString());
-        out.writeUTF(proofc.toString());
-        out.writeUTF(proofr.toString());
-        out.writeInt(U.length);
-        out.write(U);*/
-        
-        out.writeInt(index);
-        //System.out.println("tam :"+share.toByteArray().length);
-        byte[] b = encryptedShare.toByteArray();
-        out.writeInt(b.length);
-        out.write(b);
-        
-        b = share.toByteArray();
-        out.writeInt(b.length);
-        out.write(b);
-        
-        b = proofc.toByteArray();
-        out.writeInt(b.length);
-        out.write(b);
-        
-        b = proofr.toByteArray();
-        out.writeInt(b.length);
-        out.write(b);
-        
-        out.writeInt(U.length);
-        out.write(U);
-    }
-            
-    public void readExternal(ObjectInput in)
-                  throws IOException,
-                         ClassNotFoundException{
-        //System.out.println("CHAMOU readExternal");
-        /*index = in.readInt();
-        encryptedShare = new BigInteger(in.readUTF());
-        share = new BigInteger(in.readUTF());
-        proofc = new BigInteger(in.readUTF());
-        proofr = new BigInteger(in.readUTF());
-        int l = in.readInt();
-        U = new byte[l];
-        in.readFully(U);*/
-        
-        index = in.readInt();
-        
-        int l = in.readInt();
-        byte[] b = new byte[l];
-        in.readFully(b);
-        encryptedShare = new BigInteger(b);
-        
-        l = in.readInt();
-        b = new byte[l];
-        in.readFully(b);
-        share = new BigInteger(b);
-        
-        l = in.readInt();
-        b = new byte[l];
-        in.readFully(b);
-        proofc = new BigInteger(b);
-        
-        l = in.readInt();
-        b = new byte[l];
-        in.readFully(b);
-        proofr = new BigInteger(b);
-        
-        l = in.readInt();
-        U = new byte[l];
-        in.readFully(U);
-    }
-    
+
+
     public boolean verify(PublicInfo info, BigInteger publicKey) throws InvalidVSSScheme{
-        BigInteger q = info.getGroupPrimeOrder();
         
+        BigInteger q = info.getGroupPrimeOrder();
+        //ok   System.out.println("proofr"+proofr+"q"+q+"info"+info+info.getGeneratorG());
+        System.out.println("info.getGeneratorG().modPow(proofr,q)"+info.getGeneratorG().modPow(proofr,q));
+        System.out.println("publicKey :: "+publicKey );
+        System.out.println("publicKey.modPow(proofc,q)"+publicKey.modPow(proofc,q));
+
         BigInteger a1 = info.getGeneratorG().modPow(proofr,q).
                 multiply(publicKey.modPow(proofc,q)).mod(q);
         BigInteger a2 = share.modPow(proofr,q).
                 multiply(encryptedShare.modPow(proofc,q)).mod(q);
         
-        //System.out.println("a1="+a1+", a2="+a2);
+        System.out.println("a1="+a1+", a2="+a2);
         
         ByteArrayOutputStream baos = new ByteArrayOutputStream(1024);
         
@@ -146,7 +74,7 @@ public class Share implements Externalizable {
         
         BigInteger h = PVSSEngine.hash(info,baos.toByteArray()).mod(q);
         
-        //System.out.println("h="+h);
+        System.out.println("h="+h);
         
         return h.equals(proofc);
     }
