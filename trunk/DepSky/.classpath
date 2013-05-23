@@ -9,7 +9,7 @@
 	<classpathentry kind="lib" path="lib/DepSkyDependencies.jar"/>
 	<classpathentry kind="lib" path="lib/GoogleSAccess.jar"/>
 	<classpathentry kind="lib" path="lib/JReedSolEC.jar"/>
-	<classpathentry kind="lib" path="lib/NewPVSS.jar"/>
 	<classpathentry kind="lib" path="lib/RackAzureAccess.jar"/>
+	<classpathentry kind="lib" path="lib/PVSS.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

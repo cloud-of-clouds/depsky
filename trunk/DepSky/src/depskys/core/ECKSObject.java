@@ -1,6 +1,7 @@
 package depskys.core;
 
 import java.io.Serializable;
+
 import pvss.Share;
 
 /**
