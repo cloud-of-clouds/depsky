@@ -52,13 +52,13 @@ public class DepSkySCloudManager extends Thread {
 				if (terminate && replies.isEmpty() && requests.isEmpty()) {
 					break;//exit infinite loop
 				} else if (!replies.isEmpty()) {
-					
+
 					processReply(); // Process next reply in queue
-					
+
 				} else if (!requests.isEmpty()) {
-					
+
 					processRequest(); // Process next request in queue
-					
+
 				} else {
 					sleepAnInstant();
 				}
@@ -94,10 +94,10 @@ public class DepSkySCloudManager extends Thread {
 			switch (request.op) {
 			case INIT_SESS:
 				terminate = false;
-				
+
 				//Start the connection with the cloud associated to this driver
 				String sessid = driver.initSession();
-				
+
 				//add the reply for this operation
 				addReply(
 						new CloudReply(request.op, request.seqNumber,
@@ -105,7 +105,7 @@ public class DepSkySCloudManager extends Thread {
 								request.reg, request.protoOp, request.isMetadataFile, request.hashMatching));
 				break;
 			case DEL_CONT:
-				
+
 				//Delete all the files in this container (metadata and data files)
 				boolean delContRes = driver.deleteContainer(request.sid, request.namesToDelete);
 
@@ -119,19 +119,18 @@ public class DepSkySCloudManager extends Thread {
 				//Writes new data in the cloud
 				String ssid = driver.uploadData(request.sid,
 						request.cid, request.w_data, request.did);
-				
 				r = new CloudReply(request.op, request.seqNumber,
 						driver.getDriverId(), ssid, request.cid,
 						request.reg, request.protoOp, request.isMetadataFile,
 						request.w_data, request.vNumber, request.allDataHash, null, null);
-				
+
 				r.setStartTime(request.startTime);//added
 				r.setInitReceiveTime(init);
 				if (request.did.contains("metadata") && request.isMetadataFile) {
 					r.setReceiveTime(System.currentTimeMillis());
 					r.setStartTime(request.startTime);
 				}
-				
+
 				addReply(r);
 				break;
 			case GET_DATA:
@@ -139,8 +138,7 @@ public class DepSkySCloudManager extends Thread {
 				//download a file from the cloud
 				byte[] data = driver.downloadData(
 						request.sid, request.cid, request.did);
-				
-				
+
 				r = new CloudReply(request.op, request.seqNumber,
 						driver.getDriverId(), data, request.cid, request.reg,
 						request.protoOp, request.isMetadataFile,
@@ -152,30 +150,30 @@ public class DepSkySCloudManager extends Thread {
 				} else {
 					r.setMetadataReceiveTime(request.metadataReceiveTime);
 				}
-				
+
 				addReply(r);
 				break;
 			case DEL_DATA:
-				
+
 				//delete a file from the cloud
 				boolean delRes = driver.deleteData(request.sid, request.cid, request.did);
-				
+
 				addReply(
 						new CloudReply(request.op, request.seqNumber,
 								driver.getDriverId(), delRes, request.cid,
 								request.reg, request.protoOp, request.isMetadataFile, request.hashMatching));
 				break;
 			case LIST:
-				
+
 				//list all the files in the cloud that contains the string 'request.did'
 				LinkedList<String> name = driver.listNames(request.did);
-				
+
 				r = new CloudReply(request.op, request.seqNumber,
 						driver.getDriverId(), request.sid, request.cid,
 						request.reg, request.protoOp, request.isMetadataFile,
 						request.w_data, request.vNumber, request.allDataHash, name, null);
-				
-				
+
+
 				addReply(r);
 				break;
 			case SET_ACL:
@@ -237,8 +235,11 @@ public class DepSkySCloudManager extends Thread {
 					/*metadata file*/
 					cloudDataManager.processMetadata(reply);
 				} else if (reply.type == GET_DATA) {
-					/*valuedata file*/
-					cloudDataManager.checkDataIntegrity(reply);
+					
+					if(reply.vHash == null)
+						depskys.dataReceived(reply); /*to read quorum operation (out of the protocols)*/
+					else
+						cloudDataManager.checkDataIntegrity(reply); /*valuedata file*/
 				} else if (reply.type == GET_CONT_AND_DATA_ID) {
 					//send file request for metadata file ids received
 					String[] ids = (String[]) reply.response;

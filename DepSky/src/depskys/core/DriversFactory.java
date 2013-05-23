@@ -1,8 +1,8 @@
 package depskys.core;
 
+import google.GoogleStorageDriver;
 import rackazure.RackSpaceDriver;
 import rackazure.WindowsAzureDriver;
-import google.GoogleStorageDriver;
 import amazon.AmazonS3Driver;
 import depskyDep.IDepSkySDriver;
 

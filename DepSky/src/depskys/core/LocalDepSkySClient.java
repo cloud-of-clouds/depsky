@@ -195,6 +195,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 							versionReceived[i] = 2;
 							oldVerCounter++;
 						}
+						reg = r.reg;
 					} else {
 						//Data Unit NOT using PVSS (returns first reply with maxVersionFound in metadata)
 						if (maxVersionFound.longValue() == Long.parseLong(r.vNumber)) {
@@ -322,14 +323,14 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 					}
 				}
 			}//for replies
-			
+
 			if (nullResponses >= N - F) {
 				throw new Exception("READ ERROR: DepSky-S DataUnit does not exist or client is offline (internet connection failed)");
 			} else if (nullResponses > F) {
 				//System.out.println(r.response + "  \n" + r.type + "  \n" + r.vNumber + "  \n" + r.reg.toString());
 				throw new Exception("READ ERROR: at least f + 1 clouds failed.");
 			}
-			
+
 			Share[] keyshares = new Share[N];
 			Map<String, byte[]> erasurec = new HashMap<>();
 			if(reg.isErsCodes() || reg.isSecSharing() || reg.isPVSS()){
@@ -571,6 +572,10 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			if(rcs.replies.size() == 4){
 				rcs.waitReplies.release();
 			}
+		}else if(reply.protoOp == DepSkySManager.READ_PROTO && reply.vNumber.equals("true") && 
+				rcs.replies.size() >= N - F){ //read quorum when is a single file (written with operation writeQuorum)
+			rcs.waitReplies.release();
+
 		}else if (reply.protoOp == DepSkySManager.READ_PROTO
 				&& reply.reg != null
 				&& reply.reg.cloudVersions != null
@@ -744,7 +749,6 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			rcs = new CloudRepliesControlSet(N, seq);
 			replies.put(seq, rcs);
 
-
 			for (int i = 0; i < drivers.length; i++) {
 				CloudRequest r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
 						drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()),
@@ -760,7 +764,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	}
 
 	//to be utilized by the lock algorithm
-	private LinkedList<LinkedList<String>> listQuorum(DepSkySDataUnit reg, String prefix) throws Exception{
+	private LinkedList<byte[]> readQuorum(DepSkySDataUnit reg, String filename){
 
 		CloudRepliesControlSet rcs = null;
 		try{
@@ -768,8 +772,42 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			rcs = new CloudRepliesControlSet(N, seq);
 			replies.put(seq, rcs);
 
+			for (int i = 0; i < drivers.length; i++) {
+				CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
+						drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()),
+						filename, null, null,
+						reg, DepSkySManager.READ_PROTO, false, "true", null, null); //allmetadata no ultimo parametro
+				manager.doRequest(drivers[i].getDriverId(), r);
 
+				//				CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
+				//						drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()), filename,
+				//						null, null, reg, DepSkySManager.READ_PROTO, false, null);
+			}
 
+			rcs.waitReplies.acquire();
+			LinkedList<byte[]> readvalue = new LinkedList<byte[]>();
+			for (int i = 0; i < rcs.replies.size(); i++) {
+				CloudReply r = rcs.replies.get(i);
+				if(r.vNumber.equals("true") && r.response != null){
+					byte[] data = (byte[]) r.response;
+					readvalue.add(data);
+				}
+			}
+			return readvalue;
+		}catch(Exception e){
+
+		}
+		return null;
+	}
+
+	//to be utilized by the lock algorithm
+	private LinkedList<LinkedList<String>> listQuorum(DepSkySDataUnit reg, String prefix) throws Exception{
+
+		CloudRepliesControlSet rcs = null;
+		try{
+			int seq = getNextSequence();
+			rcs = new CloudRepliesControlSet(N, seq);
+			replies.put(seq, rcs);
 
 			for (int i = 0; i < drivers.length; i++) {
 				CloudRequest r = new CloudRequest(DepSkySCloudManager.LIST, seq,
@@ -908,7 +946,6 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		byte[] metabytes = valueErasureCodes.get("metadata");
 		valueErasureCodes.remove("metadata");
 		reg.setErCodesReedSolMeta(metabytes);
-
 
 		//MERGE 1 ERASURE CODE AND 1 KEY SHARE AND SEND TO CLOUDS
 		ByteArrayOutputStream data2write;
@@ -1118,8 +1155,8 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 	public static void main(String[] args) {
 		if(new Integer(args[0]) <= 6 && new Integer(args[0]) >= 0 &&
-		   new Integer(args[1]) <= 3 && new Integer(args[1]) >= 0 &&	
-	       new Integer(args[2]) <= 1 && new Integer(args[2]) >= 0){
+				new Integer(args[1]) <= 3 && new Integer(args[1]) >= 0 &&	
+				new Integer(args[2]) <= 1 && new Integer(args[2]) >= 0){
 
 			System.out.println("USAGE:  commands             function");
 			System.out.println("       pick_du 'name' - change the container");
@@ -1132,7 +1169,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			if(new Integer(args[2]) == 1){
 				useClouds = false;
 			}
-			
+
 			LocalDepSkySClient localDS = new LocalDepSkySClient(new Integer(args[0]), useClouds);
 			DepSkySDataUnit dataU = null;
 			int protocol_mode = 0;
@@ -1183,6 +1220,11 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 								dataU.clearAllCaches();
 								long acMil = System.currentTimeMillis();
 								rdata = localDS.read(dataU);
+
+								//LinkedList<byte[]> data = localDS.readQuorum(dataU, "lockfile");
+								//for(byte[] b : data)
+								//System.out.println("read -> " + new String(b));
+
 								long tempo = System.currentTimeMillis() - acMil;
 								System.out.println("I'm finished read -> " + Long.toString(tempo) + " milis");
 								if (rdata != null) {
@@ -1214,6 +1256,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 								long acMil = System.currentTimeMillis();
 
 								byte[] hash = localDS.write(dataU, value);
+								//localDS.writeQuorum(dataU, value, "lockfile");
 								LinkedList<byte[]> current = map.get(dataU.getRegId());
 								current.addFirst(hash);
 								map.put(dataU.getRegId(), current);

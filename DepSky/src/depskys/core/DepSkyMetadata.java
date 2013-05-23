@@ -1,6 +1,9 @@
 package depskys.core;
 
-import java.io.Serializable;
+import java.io.Externalizable;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 
 /**
  * Class that stores the metadata information for each version
@@ -8,33 +11,16 @@ import java.io.Serializable;
  * @author tiago oliveira
  *
  */
-public class DepSkyMetadata implements Serializable{
+public class DepSkyMetadata {
 
-	private static final long serialVersionUID = 1L;
-	private int versionNumber;
-	private byte[] versionHash;
 	private byte[] allDataHash;
 	private String versionFileId;
-	private String versionPVSSinfo;
-	private String versionECinfo;
-	private byte[] signature;
-	
+	private byte[] signature;	
 	private String metadata;
 
-
-	public DepSkyMetadata(int versionNumber, byte[] versionHash, String versionFileId,
-			String versionPVSSinfo, String versionECinfo, byte[] allDataHash, byte[] signature){
-
-		this.versionNumber = versionNumber;
-		this.versionHash = versionHash;
-		this.versionFileId = versionFileId;
-		this.versionPVSSinfo = versionPVSSinfo;
-		this.versionECinfo = versionECinfo;
-		this.allDataHash = allDataHash;
-		this.signature = signature;
-
+	public DepSkyMetadata() {
 	}
-	
+
 	public DepSkyMetadata(String medatada, byte[] signature, byte[] allDataHash, String versionFileId){
 		
 		this.metadata = medatada;
@@ -43,24 +29,8 @@ public class DepSkyMetadata implements Serializable{
 		this.versionFileId = versionFileId;
 	}
 
-	public int getVersionNumber(){
-		return versionNumber;
-	}
-
-	public byte[] getVersionHash(){
-		return versionHash;
-	}
-
 	public String getVersionFileId(){
 		return versionFileId;
-	}
-
-	public String getVersionPVSSinfo(){
-		return versionPVSSinfo;
-	}
-
-	public String getVersionECinfo(){
-		return versionECinfo;
 	}
 
 	public byte[] getAllDataHash(){
@@ -73,5 +43,24 @@ public class DepSkyMetadata implements Serializable{
 	
 	public String getMetadata(){
 		return metadata;
+	}
+
+	public void readExternal(ObjectInput in) throws IOException,
+			ClassNotFoundException {
+		allDataHash = new byte[in.readInt()];
+		in.read(allDataHash);
+		versionFileId = in.readUTF();
+		signature = new byte[in.readInt()];
+		in.read(signature);
+		metadata = in.readUTF();
+	}
+
+	public void writeExternal(ObjectOutput out) throws IOException {		
+		out.writeInt(allDataHash.length);
+		out.write(allDataHash);
+		out.writeUTF(versionFileId);
+		out.writeInt(signature.length);
+		out.write(signature);
+		out.writeUTF(metadata);	
 	}
 }

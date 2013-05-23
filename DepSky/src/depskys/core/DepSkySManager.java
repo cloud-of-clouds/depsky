@@ -85,12 +85,36 @@ public class DepSkySManager implements ICloudDataManager {
 	public void processMetadata(CloudReply metadataReply) {
 		try {
 			metadataReply.setReceiveTime(System.currentTimeMillis());
-			ByteArrayInputStream bis = new ByteArrayInputStream((byte[]) metadataReply.response);
-			ObjectInputStream in = new ObjectInputStream(bis);			
-			@SuppressWarnings("unchecked")
-			LinkedList<DepSkyMetadata> allmetadata = (LinkedList<DepSkyMetadata>) in.readObject();
-			in.close();
-			bis.close();
+			ByteArrayInputStream biss = new ByteArrayInputStream((byte[]) metadataReply.response);
+			ObjectInputStream ins = new ObjectInputStream(biss);	
+
+			LinkedList<DepSkyMetadata> allmetadata = new LinkedList<DepSkyMetadata>();	
+			
+			int size = ins.readInt();
+			byte[] metadataInit = new byte[size];
+			ins.read(metadataInit);
+
+			size = ins.readInt();
+			byte[] allMetadataSignature = new byte[size];
+			ins.read(allMetadataSignature);
+			
+			biss.close();
+			ins.close();
+			
+			biss = new ByteArrayInputStream(metadataInit);
+			ins = new ObjectInputStream(biss);
+			
+			size = ins.readInt();
+			for(int i = 0 ; i<size ; i++){
+				DepSkyMetadata meta = new DepSkyMetadata();
+				meta.readExternal(ins);
+				allmetadata.add(meta);
+			}
+			
+			
+			biss.close();
+			ins.close();
+			
 			String datareplied = null;
 			DepSkyMetadata dm = null;
 			int cont = 0;
@@ -148,13 +172,15 @@ public class DepSkySManager implements ICloudDataManager {
 			//extract client id
 			Long writerId = versionfound % MAX_CLIENTS;
 			//metadata signature check
-			if (!verifyMetadataSignature(writerId.intValue(), mdinfo, signature)) {
+			if (!verifyMetadataSignature(writerId.intValue(), mdinfo, signature) ||
+					!verifyMetadataSignature(writerId.intValue(), metadataInit, allMetadataSignature)) {
 				//invalid signature
+				System.out.println("...........................");
 				throw new Exception("Signature verification failed for " + metadataReply);
 			}
-
+			
 			//set the data unit to the protocol in use
-			if ((verPVSSinfo != null || verECinfo != null) && metadataReply.reg.info == null) {
+			if ((verPVSSinfo != null || verECinfo != null)/* && metadataReply.reg.info == null*/) {
 				if(verPVSSinfo != null && verECinfo == null){
 					metadataReply.reg.setUsingSecSharing(true);
 					metadataReply.reg.setPVSSinfo(verPVSSinfo.split(";"));
@@ -169,11 +195,11 @@ public class DepSkySManager implements ICloudDataManager {
 					metadataReply.reg.setUsingPVSS(true);
 					metadataReply.reg.setPVSSinfo(verPVSSinfo.split(";"));
 					if(metadataReply.protoOp == DepSkySManager.READ_PROTO){
-						metadataReply.reg.setErCodesReedSolMeta(verECinfo);							
+						metadataReply.reg.setErCodesReedSolMeta(verECinfo);	
+						
 					}
 				}
 			}
-
 			long ts = versionfound - writerId;//remove client id from versionNumber
 			metadataReply.setVersionNumber(ts + "");//version received
 			metadataReply.setVersionHash(verHash);
@@ -244,7 +270,7 @@ public class DepSkySManager implements ICloudDataManager {
 			}//end synch this
 
 		} catch (Exception ex) {
-			//ex.printStackTrace();
+			ex.printStackTrace();
 			System.out.println("ERROR_PROCESSING_METADATA: " + metadataReply);
 			metadataReply.invalidateResponse();
 		}
@@ -370,8 +396,29 @@ public class DepSkySManager implements ICloudDataManager {
 			}
 
 			oldMetadata.addFirst(newMD);
-			out.writeObject(oldMetadata);
-
+			out.writeInt(oldMetadata.size());
+			for(int i = 0 ; i<oldMetadata.size() ; i++){
+				oldMetadata.get(i).writeExternal(out);
+			}
+			out.close();
+			allmetadata.close();
+			byte[] metadataInit = allmetadata.toByteArray();
+			byte[] allMetadataSignature = getSignature(metadataInit);
+			
+			
+			allmetadata = new ByteArrayOutputStream();
+			out = new ObjectOutputStream(allmetadata);
+			
+			out.writeInt(metadataInit.length);
+			out.write(metadataInit);
+			out.writeInt(allMetadataSignature.length);
+			out.write(allMetadataSignature);
+			
+			
+			allmetadata.flush();
+			out.flush();
+			
+			
 			//request to write new metadata file
 			DepSkySCloudManager manager = getDriverManagerByDriverId(reply.cloudId);
 			CloudRequest r = new CloudRequest(DepSkySCloudManager.NEW_DATA,
@@ -393,6 +440,10 @@ public class DepSkySManager implements ICloudDataManager {
 
 			}
 		}
+		
+		
+		
+		
 	}
 	
 	/**
