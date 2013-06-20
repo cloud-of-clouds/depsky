@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+	<classpathentry kind="lib" path="lib/aopalliance-1.0.jar"/>
+	<classpathentry kind="lib" path="lib/azure-common-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/azureblob-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/bcprov-jdk16-1.46.jar"/>
+	<classpathentry kind="lib" path="lib/cloudfiles-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/cloudfiles-uk-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/commons-io-1.4.jar"/>
+	<classpathentry kind="lib" path="lib/DepSkyDependencies.jar"/>
+	<classpathentry kind="lib" path="lib/gson-2.2.jar"/>
+	<classpathentry kind="lib" path="lib/guava-13.0.jar"/>
+	<classpathentry kind="lib" path="lib/guice-3.0.jar"/>
+	<classpathentry kind="lib" path="lib/guice-assistedinject-3.0.jar"/>
+	<classpathentry kind="lib" path="lib/javax.inject-1.jar"/>
+	<classpathentry kind="lib" path="lib/jclouds-blobstore-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/jclouds-core-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/jersey-core-1.12.jar"/>
+	<classpathentry kind="lib" path="lib/jsr250-api-1.0.jar"/>
+	<classpathentry kind="lib" path="lib/openstack-common-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/openstack-keystone-1.5.4.jar"/>
+	<classpathentry kind="lib" path="lib/rocoto-6.1.jar"/>
+	<classpathentry kind="lib" path="lib/swift-1.5.4.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
