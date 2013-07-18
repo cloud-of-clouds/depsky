@@ -36,6 +36,7 @@ public class DepSkySDataUnit implements Serializable {
     public final int n = 4; 
     public final int f = 1;
     private String str_ec_reedsol_meta;
+    private String bucketName = null;
 
     /**
      * Class that represents a container
@@ -50,7 +51,16 @@ public class DepSkySDataUnit implements Serializable {
         this.previousMetadata = new HashMap<String, String>();
         this.isPVSS = this.isErsCodes = this.isSecSharing = false;
     }
-
+    
+    public DepSkySDataUnit(String regId, String bucketName) {
+        this.regId = regId;
+        this.lastVersionNumber = -1;
+        this.idsCache = new HashMap<String, String>();
+        this.cloudVersions = new HashMap<String, Long>();
+        this.previousMetadata = new HashMap<String, String>();
+        this.isPVSS = this.isErsCodes = this.isSecSharing = false;
+        this.bucketName = bucketName; 
+    }
     public String getMetadataFileName() {
         return regId + "metadata";
     }
@@ -110,7 +120,11 @@ public class DepSkySDataUnit implements Serializable {
         }
         return null;
     }
-
+    
+    public String getBucketName(){
+    	return this.bucketName;
+    }
+    
     public void setPreviousMetadata(String cloudId, String strmdinfo) {
         previousMetadata.put(cloudId, strmdinfo);
     }

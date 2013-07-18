@@ -117,7 +117,9 @@ public class DepSkySCloudManager extends Thread {
 			case NEW_DATA:
 				init = System.currentTimeMillis();
 				//Writes new data in the cloud
-				String ssid = driver.uploadData(request.sid,
+//				if(driver.getDriverId().equals("cloud1"))
+//					System.out.println("write -> " + new String(request.w_data));
+				String ssid = driver.uploadData(request.reg.getBucketName(),
 						request.cid, request.w_data, request.did);
 				r = new CloudReply(request.op, request.seqNumber,
 						driver.getDriverId(), ssid, request.cid,
@@ -137,8 +139,9 @@ public class DepSkySCloudManager extends Thread {
 				init = System.currentTimeMillis();
 				//download a file from the cloud
 				byte[] data = driver.downloadData(
-						request.sid, request.cid, request.did);
-
+						request.reg.getBucketName(), request.cid, request.did);
+//				if(driver.getDriverId().equals("cloud1"))
+//					System.out.println("read -> " + new String(data));
 				r = new CloudReply(request.op, request.seqNumber,
 						driver.getDriverId(), data, request.cid, request.reg,
 						request.protoOp, request.isMetadataFile,
@@ -177,7 +180,7 @@ public class DepSkySCloudManager extends Thread {
 				addReply(r);
 				break;
 			case SET_ACL:
-				boolean bool = driver.setAcl(request.cid, request.did, request.canonicalId, request.permission);
+				boolean bool = driver.setAcl(request.reg.getBucketName(), request.did, request.canonicalId, request.permission);
 
 				r = new CloudReply(request.op, request.seqNumber,
 						driver.getDriverId(), bool, request.cid,
@@ -235,7 +238,7 @@ public class DepSkySCloudManager extends Thread {
 					/*metadata file*/
 					cloudDataManager.processMetadata(reply);
 				} else if (reply.type == GET_DATA) {
-					
+
 					if(reply.vHash == null)
 						depskys.dataReceived(reply); /*to read quorum operation (out of the protocols)*/
 					else
