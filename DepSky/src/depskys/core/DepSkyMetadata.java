@@ -22,7 +22,7 @@ public class DepSkyMetadata {
 	}
 
 	public DepSkyMetadata(String medatada, byte[] signature, byte[] allDataHash, String versionFileId){
-		
+
 		this.metadata = medatada;
 		this.signature = signature;
 		this.allDataHash = allDataHash;
@@ -40,18 +40,18 @@ public class DepSkyMetadata {
 	public byte[] getsignature(){
 		return signature;
 	}
-	
+
 	public String getMetadata(){
 		return metadata;
 	}
 
 	public void readExternal(ObjectInput in) throws IOException,
-			ClassNotFoundException {
+	ClassNotFoundException {
 		allDataHash = new byte[in.readInt()];
-		in.read(allDataHash);
+		readFromOI(in, allDataHash);
 		versionFileId = in.readUTF();
 		signature = new byte[in.readInt()];
-		in.read(signature);
+		readFromOI(in, signature);
 		metadata = in.readUTF();
 	}
 
@@ -62,5 +62,15 @@ public class DepSkyMetadata {
 		out.writeInt(signature.length);
 		out.write(signature);
 		out.writeUTF(metadata);	
+	}
+
+	public static void readFromOI(ObjectInput in, byte[] toFill){
+		try {
+			for(int i = 0; i < toFill.length; i++)
+				toFill[i] = in.readByte();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 }
