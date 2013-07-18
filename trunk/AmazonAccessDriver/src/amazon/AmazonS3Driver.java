@@ -43,6 +43,7 @@ public class AmazonS3Driver implements IDepSkySDriver {
 	private String lastContainer;//container id small cache to improve driver performance
 	private String bucketName = "depskys";
 	private String accessKey, secretKey;
+	private String location;
 	Region region = null;
 
 	/**
@@ -77,21 +78,24 @@ public class AmazonS3Driver implements IDepSkySDriver {
 			conn.setEndpoint("http://s3.amazonaws.com"); //Para virtual Box funcionar
 
 
-//			if(driverId.equals("cloud1")){
-//				bucketName = bucketName.concat("ireland");
-//				region = Region.EU_Ireland;
-//			}else if(driverId.equals("cloud2")){
-//				bucketName = bucketName.concat("standard");
-//				region = Region.US_Standard;
-//			}else if(driverId.equals("cloud3")){
-//				bucketName = bucketName.concat("west");
-//				region = Region.US_West;
-//			}else if(driverId.equals("cloud4")){
-//				bucketName = bucketName.concat("saopaulo");
-//				region = Region.SA_SaoPaulo;
-//			}
+			if(driverId.equals("cloud1")){
+				bucketName = bucketName.concat("-cloud1");
+				location = "-cloud1";
+				region = Region.US_Standard;
+			}else if(driverId.equals("cloud2")){
+				bucketName = bucketName.concat("-cloud2");
+				location = "-cloud2";
+				region = Region.EU_Ireland;
+			}else if(driverId.equals("cloud3")){
+				bucketName = bucketName.concat("-cloud3");
+				location = "-cloud3";
+				region = Region.US_West;
+			}else if(driverId.equals("cloud4")){
+				bucketName = bucketName.concat("-cloud4");
+				location = "-cloud4";
+				region = Region.AP_Tokyo;
+			}
 
-			region = Region.US_Standard;
 			if(!conn.doesBucketExist(bucketName)){
 				conn.createBucket(bucketName, region);
 			}
@@ -118,6 +122,7 @@ public class AmazonS3Driver implements IDepSkySDriver {
 				conn.putObject(new PutObjectRequest(bucketName, id, in, metadata));	
 			}else{
 				AccessControlList acl = new AccessControlList();
+				sid = sid.concat(location);
 				if(!conn.doesBucketExist(sid)){
 					conn.createBucket(sid, region);
 				}else{
@@ -144,9 +149,11 @@ public class AmazonS3Driver implements IDepSkySDriver {
 	public byte[] downloadData(String sid, String cid, String id) throws StorageCloudException {
 		try {
 			S3Object object = null;
+			
 			if(sid == null){
 				object = conn.getObject(new GetObjectRequest(bucketName, id));
 			}else{
+				sid=sid.concat(location);
 				object = conn.getObject(new GetObjectRequest(sid, id));
 			}
 			byte[] array = getBytesFromInputStream(object.getObjectContent());
@@ -247,6 +254,7 @@ public class AmazonS3Driver implements IDepSkySDriver {
 	public boolean setAcl(String cid, String id, String canonicalId, String permission){
 
 		boolean f = false, v = false;
+		cid=cid.concat(location);
 		if(!conn.doesBucketExist(cid)){
 			conn.createBucket(cid, region);
 			v = true;
@@ -303,7 +311,6 @@ public class AmazonS3Driver implements IDepSkySDriver {
 		return true;
 	}
 	private String getBucketName() throws FileNotFoundException{
-
 
 		String path = "config" + File.separator + "bucket_name.properties";
 		FileInputStream fis;
