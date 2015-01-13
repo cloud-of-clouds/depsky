@@ -238,7 +238,7 @@ public class PVSSEngine {
     }
 
     public byte[] generalCombineShares(Share[] shares)
-            throws InvalidVSSScheme {
+            throws InvalidVSSScheme, ErrorDecryptingException {
         int[] x = new int[getPublicInfo().getT()];
         int j = 0;
         int k = 0;
@@ -288,11 +288,9 @@ public class PVSSEngine {
                     pad,
                     acceptedShares[x[0]].getU());
         } catch (Exception ex) {
-            Logger.getLogger(PVSSEngine.class.getName()).log(Level.SEVERE,
-                    null, ex);
+            throw new ErrorDecryptingException();
         }
 
-        return null;
     }
 
     public byte[] generalCombineShares(int[] x, Share[] shares) throws InvalidVSSScheme, Exception {
