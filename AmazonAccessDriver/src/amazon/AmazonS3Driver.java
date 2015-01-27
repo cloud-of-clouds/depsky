@@ -13,12 +13,11 @@ import java.util.LinkedList;
 import java.util.Properties;
 import java.util.Set;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AccessControlList;
-import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.CanonicalGrantee;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.Grant;
@@ -32,19 +31,20 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 import depskyDep.IDepSkySDriver;
-import depskyDep.StorageCloudException;
+import exceptions.ClientServiceException;
+import exceptions.ServiceSiteException;
+import exceptions.StorageCloudException;
 
 
-public class AmazonS3Driver implements IDepSkySDriver {
+public class AmazonS3Driver implements IDepSkySDriver{
 
 	private String driverId;
-	private AmazonS3 conn = null;
+	private AmazonS3Client conn = null;
 	private String session_key;
-	private String lastContainer;//container id small cache to improve driver performance
-	private String bucketName = "depskys";
+	private String defaultBucketName = "depskys";
 	private String accessKey, secretKey;
 	private String location;
-	Region region = null;
+	private Region region = null;
 
 	/**
 	 * Class that interact directly with amazon s3 api 
@@ -62,13 +62,35 @@ public class AmazonS3Driver implements IDepSkySDriver {
 			System.out.println("Problem with bucket_name.properties file!");
 			//e.printStackTrace();
 		}
+
+		if(driverId.equals("cloud1")){
+			defaultBucketName = defaultBucketName.concat("-coc1");
+			location = "-coc1";
+			region = Region.US_Standard;
+		}else if(driverId.equals("cloud2")){
+			defaultBucketName = defaultBucketName.concat("-coc2");
+			location = "-coc2";
+			region = Region.EU_Ireland;
+		}else if(driverId.equals("cloud3")){
+			defaultBucketName = defaultBucketName.concat("-coc3");
+			location = "-coc3";
+			region = Region.US_West;
+		}else if(driverId.equals("cloud4")){
+			defaultBucketName = defaultBucketName.concat("-coc4");
+			location = "-coc4";
+			region = Region.AP_Tokyo;
+		}else if(driverId.equals("amazon")){
+			defaultBucketName = defaultBucketName.concat("-publiccloud");
+			location = "-publiccloud";
+			region = Region.EU_Ireland;
+		}
 	}
 
 	/**
 	 * Make the connection with Amazon S3
 	 */
-	public String initSession() throws StorageCloudException {
 
+	public String initSession() throws StorageCloudException {
 		try {
 			String mprops = "accessKey=" + accessKey + "\r\n"
 					+ "secretKey = " + secretKey;
@@ -77,30 +99,12 @@ public class AmazonS3Driver implements IDepSkySDriver {
 			conn = new AmazonS3Client(b);		
 			conn.setEndpoint("http://s3.amazonaws.com"); //Para virtual Box funcionar
 
-
-			if(driverId.equals("cloud1")){
-				bucketName = bucketName.concat("-cloud1");
-				location = "-cloud1";
-				region = Region.US_Standard;
-			}else if(driverId.equals("cloud2")){
-				bucketName = bucketName.concat("-cloud2");
-				location = "-cloud2";
-				region = Region.EU_Ireland;
-			}else if(driverId.equals("cloud3")){
-				bucketName = bucketName.concat("-cloud3");
-				location = "-cloud3";
-				region = Region.US_West;
-			}else if(driverId.equals("cloud4")){
-				bucketName = bucketName.concat("-cloud4");
-				location = "-cloud4";
-				region = Region.AP_Tokyo;
+			if(!conn.doesBucketExist(defaultBucketName)){
+				conn.createBucket(defaultBucketName, region);
 			}
 
-			if(!conn.doesBucketExist(bucketName)){
-				conn.createBucket(bucketName, region);
-			}
 		} catch (IOException e) {
-			System.out.println("Cannot connect with Amazon S3.");
+			//System.out.println("Cannot connect with Amazon S3.");
 			//e.printStackTrace();
 			throw new StorageCloudException(StorageCloudException.INVALID_SESSION);
 		}
@@ -112,88 +116,115 @@ public class AmazonS3Driver implements IDepSkySDriver {
 	/**
 	 * writes the value 'data' in the file 'id'
 	 */
-	public String uploadData(String sid, String cid, byte[] data, String id) throws StorageCloudException {
+	public String uploadData(String bucketName, byte[] data, String fileId, String[] canonicalIDs) throws StorageCloudException {
 		try {
-
 			ObjectMetadata metadata = new ObjectMetadata();
 			metadata.setContentLength(data.length);
 			ByteArrayInputStream in = new ByteArrayInputStream(data);
-			if(sid == null){
-				conn.putObject(new PutObjectRequest(bucketName, id, in, metadata));	
-			}else{
-				AccessControlList acl = new AccessControlList();
-				sid = sid.concat(location);
-				if(!conn.doesBucketExist(sid)){
-					conn.createBucket(sid, region);
-				}else{
-					AccessControlList bAcl = conn.getBucketAcl(sid);
-					Set<Grant> grants = bAcl.getGrants();
-					for(Grant g : grants){
-						acl.grantPermission(g.getGrantee(), Permission.Read);
-					}
-				}
-				conn.putObject(new PutObjectRequest(sid, id, in, metadata).withAccessControlList(acl));	
 
+			if(bucketName != null){
+				bucketName = bucketName.concat(location);
+				if(!conn.doesBucketExist(bucketName)){
+					conn.createBucket(bucketName, region);
+				}
+				if(canonicalIDs !=null){
+					AccessControlList acl = new AccessControlList();
+					for(int i = 0; i < canonicalIDs.length; i++){
+						acl.grantPermission(new CanonicalGrantee(canonicalIDs[i]), Permission.Read);
+					}
+					conn.putObject(new PutObjectRequest(bucketName, fileId, in, metadata).withAccessControlList(acl));	
+				}else{
+					conn.putObject(new PutObjectRequest(bucketName, fileId, in, metadata));	
+				}
+			}else{
+				conn.putObject(new PutObjectRequest(defaultBucketName, fileId, in, metadata));
 			}
 			in.close();
-			return id;
-		} catch (Exception ex) {
-			//ex.printStackTrace();
-			throw new StorageCloudException("AWSS3Exception::" + ex.getMessage());
+			return fileId;
+		} catch (AmazonServiceException e1) {
+			throw new ServiceSiteException("AWSS3Exception::" + e1.getMessage());
+		} catch (AmazonClientException e2) {
+			throw new ClientServiceException("AWSS3Exception::" + e2.getMessage());
+		} catch (IOException e3) {
+			e3.printStackTrace();
+			throw new StorageCloudException("AWSS3Exception::" + e3.getMessage());
 		}
 	}
 
 	/**
 	 * download the content of the file 'id'
 	 */
-	public byte[] downloadData(String sid, String cid, String id) throws StorageCloudException {
+	public byte[] downloadData(String bucketName, String fileId, String[] canonicalIDs) throws StorageCloudException {
+
 		try {
 			S3Object object = null;
-			
-			if(sid == null){
-				object = conn.getObject(new GetObjectRequest(bucketName, id));
+			if(bucketName == null){
+				object = conn.getObject(new GetObjectRequest(defaultBucketName, fileId));
 			}else{
-				sid=sid.concat(location);
-				object = conn.getObject(new GetObjectRequest(sid, id));
+				bucketName = bucketName.concat(location);
+				object = conn.getObject(new GetObjectRequest(bucketName, fileId));
 			}
 			byte[] array = getBytesFromInputStream(object.getObjectContent());
 
 			object.getObjectContent().close();
 			return array;
-		} catch (Exception ex) {
-			throw new StorageCloudException("AWSS3Exception::" + ex.getMessage());
+		} catch (AmazonServiceException e1) {
+			throw new ServiceSiteException("AWSS3Exception::" + e1.getMessage());
+		} catch (AmazonClientException e2) {
+			throw new ClientServiceException("AWSS3Exception::" + e2.getMessage());
+		} catch (IOException e3) {
+			e3.printStackTrace();
+			throw new StorageCloudException("AWSS3Exception::" + e3.getMessage());
 		}
 	}
 
 	/**
 	 * delete the file 'id'
 	 */
-	public boolean deleteData(String sid, String cid, String id) throws StorageCloudException {
+	public boolean deleteData(String bucketName, String fileId, String[] canonicalIDs) throws StorageCloudException {
 		try {
-			conn.deleteObject(bucketName, id);
+			if(bucketName == null)
+				conn.deleteObject(defaultBucketName, fileId);
+			else{
+				bucketName = bucketName.concat(location);
+				conn.deleteObject(bucketName, fileId);
+			}
 			return true;
 		} catch (Exception ex) {
-			throw new StorageCloudException("AWSS3Exception::" + ex.getMessage());
+			return false;
 		}
 	}
 
 
-	public LinkedList<String> listNames(String prefix) throws StorageCloudException{
-
+	public LinkedList<String> listNames(String prefix, String bucketName, String[] canonicalIDs) throws StorageCloudException{
 		LinkedList<String> find = new LinkedList<String>();
-		ObjectListing objectListing = conn.listObjects(new ListObjectsRequest()
-		.withBucketName(bucketName).withPrefix(prefix));
-		for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
-			find.add(objectSummary.getKey());
+		try{
+			ObjectListing objectListing = null;
+			if(bucketName == null)
+				objectListing = conn.listObjects(new ListObjectsRequest()
+				.withBucketName(defaultBucketName).withPrefix(prefix));
+			else{
+				bucketName = bucketName.concat(location);
+				objectListing = conn.listObjects(new ListObjectsRequest()
+				.withBucketName(bucketName).withPrefix(prefix));
+			}
+			for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+				find.add(objectSummary.getKey());
+			}
+		} catch (AmazonServiceException e1) {
+			throw new ServiceSiteException("AWSS3Exception::" + e1.getMessage());
+		} catch (AmazonClientException e2) {
+			throw new ClientServiceException("AWSS3Exception::" + e2.getMessage());
 		}
 
 		return find;
 	}
 
-	public boolean deleteContainer(String sid, String[] allNames) throws StorageCloudException {
+	public boolean deleteContainer(String bucketName, String[] namesToDelete, String[] canonicalIDs) throws StorageCloudException {
+		String container = bucketName == null ? defaultBucketName : bucketName.concat(location);
 		try {		
-			for(String str : allNames){
-				conn.deleteObject(bucketName, str);
+			for(String fileId : namesToDelete){
+				conn.deleteObject(container, fileId);
 			}
 			return true;
 		} catch (Exception ex) {
@@ -213,77 +244,68 @@ public class AmazonS3Driver implements IDepSkySDriver {
 		return session_key;
 	}
 
-	public String getDataIdByName(String sid, String name)
-			throws StorageCloudException {
-		try {
-			if (lastContainer == null) {
-				for (Bucket b : conn.listBuckets()) {
-					ObjectListing keylist = conn.listObjects(b.getName());
-					for (S3ObjectSummary eo : keylist.getObjectSummaries()) {				
-						if (eo.getKey().equals(name)) {
-							return name;
-						}
-					}
-				}
-			} else {
-				ObjectListing keylist = conn.listObjects(lastContainer);
-				for (S3ObjectSummary eo : keylist.getObjectSummaries()) {				
-					if (eo.getKey().equals(name)) {
-						lastContainer = null;
-						return name;
-					}
-				}
+	public String[] setAcl(String bucketNameToShare, String[] canonicalId, String permission) throws StorageCloudException{
+		boolean withRead = false;
+		if(bucketNameToShare != null){
+			bucketNameToShare = bucketNameToShare.concat(location);
+			if(!conn.doesBucketExist(bucketNameToShare)){
+				conn.createBucket(bucketNameToShare, region);
 			}
-			throw new Exception("could not get the file id");
-		} catch (Exception ex) {
-			throw new StorageCloudException("AWSS3Exception::" + ex.getMessage());
-		}
-	}
-
-	public String[] getContainerAndDataIDsByName(String sid,
-			String cid, String id) throws StorageCloudException {
-
-		//S3Object container = conn.getObject(new GetObjectRequest(cid.concat(awsBucketLocation.toString()), id));
-		//container.getObjectContent().close();
-		if(exists(bucketName, cid+"/"+id))
-			return new String[]{cid, id};
-		else 
-			throw new StorageCloudException("AWSS3Exception:: Key not exist");
-	}
-
-	public boolean setAcl(String cid, String id, String canonicalId, String permission){
-
-		boolean f = false, v = false;
-		cid=cid.concat(location);
-		if(!conn.doesBucketExist(cid)){
-			conn.createBucket(cid, region);
-			v = true;
+		}else{
+			return null;
 		}
 
-		AccessControlList acl = conn.getBucketAcl(cid);
-		if(permission.equals("rw")){
-			acl.grantPermission(new CanonicalGrantee(canonicalId), Permission.FullControl);
-			f = true;
-		}else if(permission.equals("r")){
-			acl.grantPermission(new CanonicalGrantee(canonicalId), Permission.Read);
-			f = true;
-		}else if(permission.equals("w")){
-			acl.grantPermission(new CanonicalGrantee(canonicalId), Permission.Write);
-		}
-
-		if(!v && f){
-			ObjectListing objectListing = conn.listObjects(cid);
-			AccessControlList aclKeys = null;
-			for(S3ObjectSummary elem: objectListing.getObjectSummaries()) {
-				aclKeys = conn.getObjectAcl(cid, elem.getKey());
-				aclKeys.grantPermission(new CanonicalGrantee(canonicalId), Permission.Read);
-				aclKeys.grantPermission(new CanonicalGrantee(canonicalId), Permission.ReadAcp);
-				conn.setObjectAcl(cid, elem.getKey(), aclKeys);
+		// set acl
+		AccessControlList acl = conn.getBucketAcl(bucketNameToShare);
+		for(int i = 0; i < canonicalId.length; i++){
+			if(permission.equals("rw")){
+				CanonicalGrantee grantee = new CanonicalGrantee(canonicalId[i]);
+				acl.grantPermission(grantee, Permission.Read);
+				acl.grantPermission(grantee, Permission.Write);
+				withRead = true;
+			}else if(permission.equals("r")){
+				acl.grantPermission(new CanonicalGrantee(canonicalId[i]), Permission.Read);
+				withRead = true;
+			}else if(permission.equals("w")){
+				acl.grantPermission(new CanonicalGrantee(canonicalId[i]), Permission.Write);
 			}
 		}
+		try{
+			if(withRead){
+				ObjectListing objectListing = conn.listObjects(bucketNameToShare);
+				AccessControlList aclKeys = null;
+				for(S3ObjectSummary elem: objectListing.getObjectSummaries()) {
+					aclKeys = conn.getObjectAcl(bucketNameToShare, elem.getKey());
+					for(int i = 0; i < canonicalId.length; i++){
+						aclKeys.grantPermission(new CanonicalGrantee(canonicalId[i]), Permission.Read);
+					}
+					conn.setObjectAcl(bucketNameToShare, elem.getKey(), aclKeys);
+				}
+			}
 
-		conn.setBucketAcl(cid, acl);
-		return true;
+			//confirm if acl well 
+			conn.setBucketAcl(bucketNameToShare, acl);
+			AccessControlList newAcl = conn.getBucketAcl(bucketNameToShare);
+			Set<Grant> grants = newAcl.getGrants();
+			boolean flag = false;
+			for(Grant grant : grants){
+				if(grant.getGrantee().getIdentifier().equals(canonicalId[0])){
+					flag = true;
+				}
+			}
+			if(!flag){
+				throw new ServiceSiteException("AWSS3Exception:: ACL");
+			}
+		} catch (AmazonServiceException e1) {
+			throw new ServiceSiteException("AWSS3Exception::" + e1.getMessage());
+		} catch (AmazonClientException e2) {
+			throw new ClientServiceException("AWSS3Exception::" + e2.getMessage());
+		}
+		return canonicalId;
+	}
+
+	public String getLocation(){
+		return location;
 	}
 
 	private static byte[] getBytesFromInputStream(InputStream is)
@@ -302,16 +324,8 @@ public class AmazonS3Driver implements IDepSkySDriver {
 
 		return buffer.toByteArray();
 	}
-	private boolean exists(String cid, String id) {
-		try {
-			conn.getObjectMetadata(cid, id); 
-		} catch(AmazonServiceException e) {
-			return false;
-		}
-		return true;
-	}
-	private String getBucketName() throws FileNotFoundException{
 
+	private String getBucketName() throws FileNotFoundException{
 		String path = "config" + File.separator + "bucket_name.properties";
 		FileInputStream fis;
 		try {
@@ -326,16 +340,15 @@ public class AmazonS3Driver implements IDepSkySDriver {
 					char rand = (char)(Math.random() * 26 + 'a');
 					randname[i] = rand;
 				}
-				bucketName = bucketName.concat(new String(randname));
-				props.setProperty("bucketname", bucketName);
+				defaultBucketName = defaultBucketName.concat(new String(randname));
+				props.setProperty("bucketname", defaultBucketName);
 				props.store(new FileOutputStream(path),"change");
 			}else{
-				bucketName = name;
+				defaultBucketName = name;
 			}
 		}catch(IOException e){  
 			e.printStackTrace();  
 		} 
 		return null;
 	}
-
 }
