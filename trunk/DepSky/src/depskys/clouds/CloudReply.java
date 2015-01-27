@@ -13,8 +13,9 @@ import depskys.core.DepSkySDataUnit;
  */
 public class CloudReply {
 
-    public int sequence, type, protoOp;
+    public int sequence, type, protoOp, numVersionToKeep;
     public String cloudId, container, vNumber, vHash, exceptionMessage, valueFileId;
+    public String[] accessToOtherAccount;
     public DepSkySDataUnit reg;
     public Object response;
     public boolean isMetadataFile;
@@ -44,7 +45,7 @@ public class CloudReply {
 
     public CloudReply(int type, int sequence, String cloudId, Object response,
             String container, DepSkySDataUnit reg, int protoOp, boolean isMetadataFile,
-            byte[] value, String vNumber, byte[] allDataHash, LinkedList<String> list_names, byte[] hashMatching) {
+            byte[] value, String vNumber, byte[] allDataHash, LinkedList<String> list_names, byte[] hashMatching, String[] accessToOtherAccount) {
         this.type = type;
         this.sequence = sequence;
         this.cloudId = cloudId;
@@ -58,11 +59,12 @@ public class CloudReply {
         this.allDataHash = allDataHash;
         this.listNames = list_names;
         this.hashMatching = hashMatching;
+        this.accessToOtherAccount = accessToOtherAccount;
     }
 
     public CloudReply(int type, int sequence, String cloudId, Object response,
             String container, DepSkySDataUnit reg, int protoOp, boolean isMetadataFile,
-            String vNumber, String vHash, byte[] allDataHash, byte[] hashMatching) {
+            String vNumber, String vHash, byte[] allDataHash, byte[] hashMatching, String[] accessToOtherAccount, int numVersionToKeep) {
         this.type = type;
         this.sequence = sequence;
         this.cloudId = cloudId;
@@ -75,6 +77,8 @@ public class CloudReply {
         this.vHash = vHash;
         this.allDataHash = allDataHash;
         this.hashMatching = hashMatching;
+        this.accessToOtherAccount = accessToOtherAccount;
+        this.numVersionToKeep = numVersionToKeep;
     }
     
     

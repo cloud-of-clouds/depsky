@@ -1,12 +1,14 @@
 package depskys.core;
 
-import google.GoogleStorageDriver;
+//import google.GoogleStorageDriver;
+
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -27,23 +29,27 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.apache.commons.io.IOUtils;
 
+import pvss.ErrorDecryptingException;
 import pvss.InvalidVSSScheme;
 import pvss.PVSSEngine;
 import pvss.PublicInfo;
 import pvss.PublishedShares;
 import pvss.Share;
-import rackazure.RackSpaceDriver;
-import rackazure.WindowsAzureDriver;
 import reedsol.ReedSolDecoder;
 import reedsol.ReedSolEncoder;
 import util.Pair;
+import rackspace.RackSpaceDriver;
 import amazon.AmazonS3Driver;
+import google.GoogleStorageDriver;
+import azure.WindowsAzureDriver;
+import depskyDep.DepSkySKeyLoader;
 import depskyDep.IDepSkySDriver;
 import depskys.clouds.CloudRepliesControlSet;
 import depskys.clouds.CloudReply;
 import depskys.clouds.CloudRequest;
 import depskys.clouds.DepSkySCloudManager;
 import depskys.clouds.drivers.LocalDiskDriver;
+import exceptions.StorageCloudException;
 
 
 /**
@@ -53,6 +59,8 @@ import depskys.clouds.drivers.LocalDiskDriver;
  * @author bruno quaresma
  */
 public class LocalDepSkySClient implements IDepSkySProtocol{
+
+	private static final int LOCK_AVAILABLE = 0, LOCK_UNVAILABLE = 1, RENEW = 2;
 
 	/**
 	 * @param args
@@ -77,17 +85,10 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 	//private static String name;
 
-	/**
-	 * 
-	 * @param clientId - client ID
-	 * @param useModel - if false, DepSky will work locally (all the data is stored in local machine - you
-	 *                   must run the server first, see README file),
-	 *                   if true, cloudofclouds are used instead
-	 * 
-	 */
-	public LocalDepSkySClient(int clientId, boolean useModel){
+	public LocalDepSkySClient(int clientId, boolean useModel) throws StorageCloudException {
 
 		this.clientId = clientId;
+		DepSkySKeyLoader keyLoader = new DepSkySKeyLoader(null);
 		if(!useModel){
 			this.cloud1 = new LocalDiskDriver("cloud1");
 			this.cloud2 = new LocalDiskDriver("cloud2");
@@ -119,11 +120,14 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 						secretKey = pair[1];
 					}
 				}
+				//				if(type.equals("AMAZON-S3")){
+				//					this.awsSecretKey = secretKey;
+				//					this.awsAcccessKey = accessKey;
+				//				}
 				drivers[i] = DriversFactory.getDriver(type, driverId, accessKey, secretKey);
 			}
-
 		}	
-		this.manager = new DepSkySManager(drivers, this);
+		this.manager = new DepSkySManager(drivers, this, keyLoader);
 		this.replies = new HashMap<Integer, CloudRepliesControlSet>();
 		this.N = drivers.length;
 		this.F = 1;
@@ -132,11 +136,44 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 		if(!startDrivers()){
 			System.out.println("Connection Error!");
-		}	
+		}
 	}
+
+	//	public Pair<String, String> getAWSCred(){
+	//		return new Pair<String, String>(awsAcccessKey, awsSecretKey);
+	//	}
+
+	//	/**
+	//	 * TEMP LOCK SWITCH 
+	//	 */
+	//	public void setLock(ICloudServiceLock lock, String driverTag){
+	//		for(IDepSkySDriver driver : drivers){
+	//			try {
+	//				if(getDriverKeyName(driver).equals(driverTag))
+	//					driver.setCloudServiceLock(lock);
+	//			} catch (StorageCloudException e) {
+	//				e.printStackTrace();
+	//			}
+	//		}
+	//	}
+
+
+	/**
+	 * 
+	 * @param clientId - client ID
+	 * @param useModel - if false, DepSky will work locally (all the data is stored in local machine - you
+	 *                   must run the server first, see README file),
+	 *                   if true, cloudofclouds are used instead
+	 * @throws StorageCloudException 
+	 * 
+	 */
 
 	public int getClientId() {
 		return this.clientId;
+	}
+
+	public synchronized byte[] readMatching(DepSkySDataUnit reg, byte[] hashMatching) throws Exception{
+		return readMatching(reg, hashMatching, null);
 	}
 
 	/**
@@ -148,7 +185,8 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	 * @throws Exception
 	 * 
 	 */
-	public synchronized byte[] readMatching(DepSkySDataUnit reg, byte[] hashMatching) throws Exception{
+	public synchronized byte[] readMatching(DepSkySDataUnit reg, byte[] hashMatching, 
+			LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) throws Exception{
 
 
 		parallelRequests = true;
@@ -160,8 +198,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			int seq = getNextSequence();
 			rcs = new CloudRepliesControlSet(N, seq);
 			//broadcast to all clouds to get the metadata file and after the version requested
-			broadcastGetMetadata(seq, reg,
-					DepSkySManager.READ_PROTO, hashMatching);
+			broadcastGetMetadata(seq, reg, DepSkySManager.READ_PROTO, hashMatching, uploadToAnotherAccountKeys);
 			replies.put(seq, rcs);
 			int nullResponses = 0;
 
@@ -268,6 +305,10 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		}
 
 	}
+	public synchronized byte[] read(DepSkySDataUnit reg) throws Exception {
+		return read(reg, null);
+	}
+
 
 	/**
 	 *  Read the last version written for the file associated with reg
@@ -275,7 +316,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	 *  @param reg - the DataUnit associated with the file
 	 *  
 	 */
-	public synchronized byte[] read(DepSkySDataUnit reg) throws Exception {
+	public synchronized byte[] read(DepSkySDataUnit reg, LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) throws Exception {
 
 		parallelRequests = true;
 		lastMetadataReplies = null;
@@ -285,8 +326,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			int seq = getNextSequence();
 			rcs = new CloudRepliesControlSet(N, seq);
 			//broadcast to all clouds to get the metadata file and after the version requested
-			broadcastGetMetadata(seq, reg,
-					DepSkySManager.READ_PROTO, null);
+			broadcastGetMetadata(seq, reg, DepSkySManager.READ_PROTO, null, uploadToAnotherAccountKeys);
 			replies.put(seq, rcs);
 			int nullResponses = 0;
 			//process value data responses
@@ -391,19 +431,23 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		}
 	}
 
+	public void deleteContainer(DepSkySDataUnit reg) throws Exception{
+		deleteContainer(reg, null);
+	}
+
 	/**
 	 * Delete all the data (data and metadata files) associated with this Data Unit
 	 * 
 	 * @param reg - Data Unit
 	 */
-	public void deleteContainer(DepSkySDataUnit reg) throws Exception{
+	public void deleteContainer(DepSkySDataUnit reg, LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) throws Exception{
 
 		CloudRepliesControlSet rcs = null;
 		try {
 			int seq = getNextSequence();
 			rcs = new CloudRepliesControlSet(N, seq);
 			replies.put(seq, rcs);
-			broadcastGetMetadata(seq, reg, DepSkySManager.DELETE_ALL, null);
+			broadcastGetMetadata(seq, reg, DepSkySManager.DELETE_ALL, null, uploadToAnotherAccountKeys);
 			rcs.waitReplies.acquire();
 			lastMetadataReplies = rcs.replies;
 
@@ -421,6 +465,9 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	 * 
 	 */
 	public synchronized byte[] write(DepSkySDataUnit reg, byte[] value) throws Exception {
+		return write(reg, value, null);
+	}
+	public synchronized byte[] write(DepSkySDataUnit reg, byte[] value, LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) throws Exception {
 
 		CloudRepliesControlSet rcs = null, wrcs = null;
 
@@ -429,8 +476,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			rcs = new CloudRepliesControlSet(N, seq);
 			replies.put(seq, rcs);
 			//broadcast to all clouds to get the Metadata associated with this dataUnit
-			broadcastGetMetadata(seq, reg,
-					DepSkySManager.WRITE_PROTO, null);
+			broadcastGetMetadata(seq, reg, DepSkySManager.WRITE_PROTO, null, uploadToAnotherAccountKeys);
 			rcs.waitReplies.acquire(); //blocks until the semaphore is released
 			lastMetadataReplies = rcs.replies;
 			//process replies and actualize version
@@ -468,13 +514,13 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 			//do the broadcast depending on the protocol selected for use (CA, A, only erasure codes or only secret sharing)
 			if(reg.isErsCodes()){
-				broadcastWriteValueErasureCodes(sequence, reg, value, nextVersion + "", allDataHash);
+				broadcastWriteValueErasureCodes(sequence, reg, value, nextVersion + "", allDataHash, uploadToAnotherAccountKeys);
 			}else if(reg.isSecSharing()){
-				broadcastWriteValueSecretKeyShares(sequence, reg, value, nextVersion + "", allDataHash);
+				broadcastWriteValueSecretKeyShares(sequence, reg, value, nextVersion + "", allDataHash, uploadToAnotherAccountKeys);
 			}else if (reg.isPVSS()) {
-				broadcastWriteValueErasureCodesAndSecretKeyShares(sequence, reg, value, nextVersion + "", allDataHash);
+				broadcastWriteValueErasureCodesAndSecretKeyShares(sequence, reg, value, nextVersion + "", allDataHash, uploadToAnotherAccountKeys);
 			} else {
-				broadcastWriteValueRequests(seq, reg, value, nextVersion + "", allDataHash);
+				broadcastWriteValueRequests(seq, reg, value, nextVersion + "", allDataHash, uploadToAnotherAccountKeys);
 			}
 
 			wrcs.waitReplies.acquire();
@@ -493,9 +539,9 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	/**
 	 * NOT SUPORTED YET (waiting that all clouds support ACLs by container)
 	 */
-	public void setAcl(DepSkySDataUnit reg, String permission, LinkedList<Pair<String, String>> cannonicalIds) throws Exception {
+	public LinkedList<Pair<String, String[]>> setAcl(DepSkySDataUnit reg, String permission, LinkedList<Pair<String, String[]>> cannonicalIds) throws Exception {
 
-		CloudRepliesControlSet rcs = null, wrcs = null;
+		CloudRepliesControlSet wrcs = null;
 
 		try{
 			//			int seq = getNextSequence();
@@ -527,13 +573,40 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 			int seq = getNextSequence();
 			wrcs = new CloudRepliesControlSet(N, seq);
-			replies.put(seq, wrcs);
 			broadcastSetContainersACL(seq, reg, DepSkySManager.ACL_PROTO, 0, permission, cannonicalIds);
+			replies.put(seq, wrcs);
 
 			wrcs.waitReplies.acquire();
 			lastReadReplies = wrcs.replies;
-
-
+			int nullResponses = 0;
+			LinkedList<Pair<String, String[]>> cred = new LinkedList<Pair<String, String[]>>();
+			for (int i = 0; i < wrcs.replies.size(); i++) {
+				CloudReply r = wrcs.replies.get(i);	
+				if (r.response == null || r.type != DepSkySCloudManager.SET_ACL || r.reg == null) {
+					nullResponses++;
+					System.out.println("null response " + r.cloudId);
+					break;
+				}else{
+					for(int j = 0; j < drivers.length; j++){
+						if(drivers[j] instanceof AmazonS3Driver && r.cloudId.equals(drivers[j].getDriverId())){
+							Pair<String, String[]> pair = new Pair<String, String[]>("AMAZON-S3", (String[])r.response);
+							cred.add(pair);
+						}else if(drivers[j] instanceof WindowsAzureDriver && r.cloudId.equals(drivers[j].getDriverId())){
+							Pair<String, String[]> pair = new Pair<String, String[]>("WINDOWS-AZURE", (String[])r.response);
+							cred.add(pair);
+						}else if(drivers[j] instanceof GoogleStorageDriver && r.cloudId.equals(drivers[j].getDriverId())){
+							Pair<String, String[]> pair = new Pair<String, String[]>("GOOGLE-STORAGE", (String[])r.response);
+							cred.add(pair);
+						}else if(drivers[j] instanceof RackSpaceDriver && r.cloudId.equals(drivers[j].getDriverId())){
+							Pair<String, String[]> pair = new Pair<String, String[]>("RACKSPACE", (String[])r.response);
+							cred.add(pair);
+						}
+					}				
+				}
+			}
+			if(nullResponses >= F)
+				throw new Exception("Set ACL: at least n-f clouds failed.");
+			return cred;
 		} catch (Exception ex) {
 			//System.out.println("DEPSKYS WRITE ERROR: " + ex.getMessage());
 			//ex.printStackTrace();
@@ -571,8 +644,24 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		}
 
 		//processing reply
-		if (reply.protoOp == DepSkySManager.ACL_PROTO){
-			if(rcs.replies.size() == 4){
+		if(reply.protoOp == DepSkySManager.LOCK_PROTO && reply.response != null && rcs.replies.size() >= F + 1){ 
+			int nulls = 0, nonNull = 0;
+
+			for (int i = 0; i < rcs.replies.size(); i++) {
+				if (rcs.replies.get(i).response == null || (boolean) rcs.replies.get(i).response == false) {
+					nulls++;
+				} else {
+					nonNull++;
+				}
+			}
+			//release wait messages semaphore
+			if (nonNull >= N - F || rcs.replies.size() > N - F || nulls >= F+1) {
+				rcs.waitReplies.release();
+				return;
+			}
+		}else if (reply.protoOp == DepSkySManager.ACL_PROTO || reply.protoOp == DepSkySManager.DELETE_ALL
+				|| reply.protoOp == DepSkySManager.GC_PROTO){
+			if(rcs.replies.size() == N){
 				rcs.waitReplies.release();
 			}
 		}else if(reply.protoOp == DepSkySManager.READ_PROTO && reply.response != null &&
@@ -657,71 +746,46 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 	}
 
-	public String lock(DepSkySDataUnit reg, int retries) throws Exception{
-		String lock_id = null;
-		boolean terminate = false;
-		boolean writeLock = false;
-		boolean result = false;
-		int count=0;
-		Random r = new Random();
-		long time = System.currentTimeMillis();
-
-		lock_id = String.valueOf(clientId);
-		String name ="lock_" + reg.getRegId()+"_"+lock_id+"_"+time;
-		while(!terminate){
-			LinkedList<LinkedList<String>> L = listQuorum(reg, "lock_" + reg.getRegId());
-			lock_id = String.valueOf(clientId);
-			writeLock = verifyLock(L, time, reg, name);
-
-			if(writeLock){            	
-				byte[] signature = manager.getSignature(name.getBytes());            	
-				writeQuorum(reg, signature, name);
-				L=null;
-				L=listQuorum(reg, "lock_" + reg.getRegId());
-				writeLock = verifyLock(L, time, reg, name);            	
-				if (writeLock) {
-					result = true;
-					lock_id=null;
-					L=null;
-					terminate=true;
-				}else{
-					if(retries==0){
-						terminate=true;
-					}else{
-						count++;
-						Thread.sleep(1000+r.nextInt(1000));
-					}
-					result = false;
-				}
-			}else{
-				if(retries==0){
-					terminate=true;
-				}else{
-					count++;
-					Thread.sleep(1000+r.nextInt(1000));
-				}
-				result = false;
-			}
-			if(retries!=-1){
-				if(count>retries){
-					terminate = true;
-				}
-			}
-		}
-		if(result)
-			return name;
-		else
-			return null;
-
-	}
-
-	public void unlock(DepSkySDataUnit reg, String name){
-		deleteData(reg, name);
-	}
 
 	public boolean sendingParallelRequests() {
 		return parallelRequests;
 	}
+
+	public void garbageCollect(DepSkySDataUnit reg, int numVersionToKeep){
+		CloudRepliesControlSet rcs = null;
+		try {
+			int seq = getNextSequence();
+			rcs = new CloudRepliesControlSet(N, seq);
+			replies.put(seq, rcs);
+			broadcastGarbageCollection(seq, reg, DepSkySManager.GC_PROTO, numVersionToKeep);
+			rcs.waitReplies.acquire();
+			lastMetadataReplies = rcs.replies;
+
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		} catch (StorageCloudException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+
+	private void broadcastGarbageCollection(int sequence, DepSkySDataUnit reg, int protoOp, int numVersionToKeep) throws StorageCloudException{
+
+
+		for (int i = 0; i < drivers.length; i++) {
+			CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
+					reg.getContainerName(), reg.getMetadataFileName(),
+					reg, protoOp, true, numVersionToKeep);
+
+			if (reg.getContainerId(drivers[i].getDriverId()) == null) {
+				reg.setContainerId(drivers[i].getDriverId(), reg.getContainerName());
+			}
+			manager.doRequest(drivers[i].getDriverId(), r);
+		}
+
+	}
+
 
 	/**
 	 * Start all connections with the clouds (this operations only get success if all the four 
@@ -737,8 +801,8 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		replies.put(seq, rcs);
 		for(int i = 0; i < 4; i++)
 			manager.driversManagers[i].doRequest(
-					new CloudRequest(DepSkySCloudManager.INIT_SESS, seq, null,
-							null, null, null, new Properties(), null, -1, false, null));
+					new CloudRequest(DepSkySCloudManager.INIT_SESS, seq,
+							""+clientId, null, null, new Properties(), null, -1, false, null, null));
 
 		try {
 			rcs.waitReplies.acquire();
@@ -809,7 +873,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		return sequence;
 	}
 
-	//to be utilized by the lock algorithm
+	//to be used by the lock algorithm
 	private void writeQuorum(DepSkySDataUnit reg, byte[] value, String filename){
 
 		CloudRepliesControlSet rcs = null;
@@ -820,9 +884,9 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 			for (int i = 0; i < drivers.length; i++) {
 				CloudRequest r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
-						drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()),
+						reg.getContainerId(drivers[i].getDriverId()),
 						filename, value, null,
-						reg, DepSkySManager.WRITE_PROTO, true, null, null, null); //allmetadata no ultimo parametro
+						reg, DepSkySManager.WRITE_PROTO, true, null, null, null, null); //allmetadata no ultimo parametro
 				manager.doRequest(drivers[i].getDriverId(), r);
 			}
 
@@ -832,7 +896,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		}
 	}
 
-	//to be utilized by the lock algorithm
+	//to be used by the lock algorithm
 	private LinkedList<byte[]> readQuorum(DepSkySDataUnit reg, String filename){
 
 		CloudRepliesControlSet rcs = null;
@@ -843,10 +907,10 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 			for (int i = 0; i < drivers.length; i++) {
 				CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
-						drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()),
+						reg.getContainerId(drivers[i].getDriverId()),
 						filename, null, null,
-						reg, DepSkySManager.READ_PROTO, false, "true", null, null); //allmetadata no ultimo parametro
-				manager.doRequest(drivers[i].getDriverId(), r);
+						reg, DepSkySManager.READ_PROTO, false, "true", null, null, null); //allmetadata no penultimo parametro
+				manager.doRequest(drivers[i].getDriverId(), r);                           
 
 				//				CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
 				//						drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()), filename,
@@ -869,7 +933,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		return null;
 	}
 
-	//to be utilized by the lock algorithm
+	//to be used by the lock algorithm
 	private LinkedList<LinkedList<String>> listQuorum(DepSkySDataUnit reg, String prefix) throws Exception{
 
 		CloudRepliesControlSet rcs = null;
@@ -880,8 +944,8 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 			for (int i = 0; i < drivers.length; i++) {
 				CloudRequest r = new CloudRequest(DepSkySCloudManager.LIST, seq,
-						drivers[i].getSessionKey(), reg.getContainerName(), prefix,
-						null, null, reg, -1, true, null);
+						reg.getContainerName(), prefix,
+						null, null, reg, -1, true, null, null);
 				manager.doRequest(drivers[i].getDriverId(), r);
 			}
 
@@ -906,11 +970,12 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			return listPerClouds;
 
 		}catch(Exception e){
-
+			System.out.println(e.getMessage());
 		}
 		return null;
 	}
 
+	//to be used by the lock algorithm
 	private byte[] readFromOneCloud(DepSkySDataUnit reg, String driverId, String filename){
 
 		CloudRepliesControlSet rcs = null;
@@ -921,9 +986,8 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 
 			CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
-					"sid", reg.getContainerId(driverId),
-					filename, null, null,
-					reg, DepSkySManager.READ_PROTO, false, "false", null, null);
+					reg.getContainerId(driverId), filename, null, null,
+					reg, DepSkySManager.READ_PROTO, false, "false", null, null, null);
 
 			manager.doRequest(driverId, r);
 
@@ -943,7 +1007,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		return null;
 	}
 
-	//to be utilized by the lock algorithm
+	//to be used by the lock algorithm
 	private void deleteData(DepSkySDataUnit reg, String name){
 
 		CloudRepliesControlSet rcs = null;
@@ -954,8 +1018,8 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 			for (int i = 0; i < drivers.length; i++) {
 				CloudRequest r = new CloudRequest(DepSkySCloudManager.DEL_DATA, seq,
-						drivers[i].getSessionKey(), reg.getContainerName(), name,
-						null, null, reg, -1, true, null);
+						reg.getContainerName(), name,
+						null, null, reg, -1, true, null, null);
 				manager.doRequest(drivers[i].getDriverId(), r);
 			}
 			rcs.waitReplies.acquire();
@@ -969,67 +1033,99 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	/*
 	 * Get the metadata file (used for read, write and delete operations)
 	 */
-	private void broadcastGetMetadata(int sequence,
-			DepSkySDataUnit reg, int protoOp, byte[] hashMatching) {
+	private void broadcastGetMetadata(int sequence, DepSkySDataUnit reg, int protoOp, byte[] hashMatching, 
+			LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) throws StorageCloudException {
 
-		for (int i = 0; i < drivers.length; i++) {
-			CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
-					drivers[i].getSessionKey(), reg.getContainerName(), reg.getMetadataFileName(),
-					null, null, reg, protoOp, true, hashMatching);
+		//request to the bucket owner account
+		if(uploadToAnotherAccountKeys == null){
+			for (int i = 0; i < drivers.length; i++) {
+				CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
+						reg.getContainerName(), reg.getMetadataFileName(),
+						null, null, reg, protoOp, true, hashMatching, null);
 
-			if (reg.getContainerId(drivers[i].getDriverId()) == null) {
-				reg.setContainerId(drivers[i].getDriverId(), reg.getContainerName());
+				if (reg.getContainerId(drivers[i].getDriverId()) == null) {
+					reg.setContainerId(drivers[i].getDriverId(), reg.getContainerName());
+				}
+				manager.doRequest(drivers[i].getDriverId(), r);
 			}
-			manager.doRequest(drivers[i].getDriverId(), r);
+		}else{ //request to other user account
+			for (int i = 0; i < drivers.length; i++) {
+				Pair<String, String[]> pair = getPair(getDriverKeyName(drivers[i]), uploadToAnotherAccountKeys);
+				CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA, sequence,
+						reg.getContainerName(), reg.getMetadataFileName(),
+						null, null, reg, protoOp, true, hashMatching, pair.getValue());
+
+				if (reg.getContainerId(drivers[i].getDriverId()) == null) {
+					reg.setContainerId(drivers[i].getDriverId(), reg.getContainerName());
+				}
+
+				manager.doRequest(drivers[i].getDriverId(), r);
+			}
 		}
 
 	}
 
-	/**
-	 * NOT CURRENTLY USED
-	 */
+	//TODO: Acho que nao funciona para diferentes contas do mesmo storage service (ex: 4 amazons) porque devolve os values sempre da primeira que encontra
+	private Pair<String, String[]> getPair(String key, List<Pair<String, String[]>> uploadToAnotherAccountKeys) throws StorageCloudException{
+		for(Pair<String, String[]> p : uploadToAnotherAccountKeys){
+			if(p.getKey().equals(key))
+				return p;
+		}
+		throw new StorageCloudException("Other accounts credentials error for driver : " + key);
+	}
+
+	private String getDriverKeyName(IDepSkySDriver driver) throws StorageCloudException{
+		if(driver instanceof AmazonS3Driver){
+			return "AMAZON-S3";
+		}else if(driver instanceof GoogleStorageDriver){
+			return "GOOGLE-STORAGE";
+		}else if(driver instanceof WindowsAzureDriver){
+			return "WINDOWS-AZURE";
+		}else if(driver instanceof RackSpaceDriver){
+			return "RACKSPACE";
+		}
+		throw new StorageCloudException("Unknown driver implementation.");
+	}
+
+
+
+
+
 	private void broadcastSetContainersACL(int sequence, DepSkySDataUnit reg, int protoOp, long version,
-			String permission, LinkedList<Pair<String, String>> cannonicalIds){
+			String permission, LinkedList<Pair<String, String[]>> cannonicalIds) throws StorageCloudException{
 
 
 		for(int i = 0; i < drivers.length; i++){
-			Pair<String, String> pair = cannonicalIds.get(i);
-			if(drivers[i] instanceof AmazonS3Driver && pair.getKey().equals("AMAZON-S3")){
-				perDriverAclRequest(sequence, reg, protoOp, version, i, permission, pair.getValue());
-			}else if(drivers[i] instanceof GoogleStorageDriver && pair.getKey().equals("GOOGLE-STORAGE")){
-				perDriverAclRequest(sequence, reg, protoOp, version, i, permission, pair.getValue());
-			}else if(drivers[i] instanceof WindowsAzureDriver && pair.getKey().equals("WINDOWS-AZURE")){
-				perDriverAclRequest(sequence, reg, protoOp, version, i, permission, pair.getValue());
-			}else if(drivers[i] instanceof RackSpaceDriver && pair.getKey().equals("RACKSPACE")){
-				perDriverAclRequest(sequence, reg, protoOp, version, i, permission, pair.getValue());
-			}
+			Pair<String, String[]> pair = getPair(getDriverKeyName(drivers[i]), cannonicalIds);
+			perDriverAclRequest(sequence, reg, protoOp, version, i, permission, pair.getValue());
 		}
 	}
 
-	/**
-	 * NOT CURRENTLY USED
-	 */
 	private void perDriverAclRequest(int sequence, DepSkySDataUnit reg, int protoOp, long version, 
-			int driverPosition, String permission, String canonicalId){
+			int driverPosition, String permission, String[] canonicalId){
 
 		CloudRequest r = new CloudRequest(DepSkySCloudManager.SET_ACL, sequence, 
-				drivers[driverPosition].getSessionKey(), reg.getContainerName(), 
+				reg.getContainerName(), 
 				reg.regId, reg, protoOp,
 				permission, canonicalId);			
 		manager.doRequest(drivers[driverPosition].getDriverId(), r);
 	}
 
-
 	/*
 	 * Broadcast to write new data when using DepSky-A
 	 */
 	private void broadcastWriteValueRequests(int sequence,
-			DepSkySDataUnit reg, byte[] value, String version, byte[] allDataHash) {
+			DepSkySDataUnit reg, byte[] value, String version, byte[] allDataHash, LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) {
 		for (int i = 0; i < drivers.length; i++) {
-			CloudRequest r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
-					drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()),
-					reg.getGivenVersionValueDataFileName(version), value, null,
-					reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash);
+			CloudRequest r = null;
+			if(uploadToAnotherAccountKeys == null){
+				r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
+						reg.getContainerId(drivers[i].getDriverId()),
+						reg.getGivenVersionValueDataFileName(version), value, null,
+						reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash, null);
+			}else{
+				//TODO: request to other user accounts (use uploadToAnotherAccountKeys)
+			}
 			manager.doRequest(drivers[i].getDriverId(), r);
 		}
 	}
@@ -1038,7 +1134,8 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	 * Broadcast to write new data when using DepSky-CA
 	 */
 	private void broadcastWriteValueErasureCodesAndSecretKeyShares(int sequence,
-			DepSkySDataUnit reg, byte[] value, String version, byte[] allDataHash) throws Exception {
+			DepSkySDataUnit reg, byte[] value, String version, byte[] allDataHash, 
+			LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) throws Exception {
 
 
 		SecretKey key = MyAESCipher.generateSecretKey();
@@ -1055,6 +1152,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		ByteArrayOutputStream data2write;
 		ObjectOutputStream oos;
 		Object[] ec_fnames = valueErasureCodes.keySet().toArray();
+
 		for (int i = 0; i < drivers.length; i++) {
 			data2write = new ByteArrayOutputStream();
 			oos = new ObjectOutputStream(data2write);
@@ -1064,12 +1162,22 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			oos.writeObject(obj);
 			oos.close();
 			//send request
-			CloudRequest r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
-					drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()),
-					reg.getGivenVersionValueDataFileName(version), data2write.toByteArray(), null,
-					reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash);
+			CloudRequest r = null;
+			if(uploadToAnotherAccountKeys == null){
+				r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
+						reg.getContainerId(drivers[i].getDriverId()),
+						reg.getGivenVersionValueDataFileName(version), data2write.toByteArray(), null,
+						reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash, null);
+			}else{
+				Pair<String, String[]> pair = getPair(getDriverKeyName(drivers[i]), uploadToAnotherAccountKeys);
+				r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
+						reg.getContainerId(drivers[i].getDriverId()),
+						reg.getGivenVersionValueDataFileName(version), data2write.toByteArray(), null,
+						reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash, pair.getValue());
+			}
 			manager.doRequest(drivers[i].getDriverId(), r);
 		}
+
 
 	}
 
@@ -1077,7 +1185,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	 * Broadcast to write new data when using only erasure codes (not use secret sharing)
 	 */
 	private void broadcastWriteValueErasureCodes(int sequence,
-			DepSkySDataUnit reg, byte[] value, String version, byte[] allDataHash) throws Exception{
+			DepSkySDataUnit reg, byte[] value, String version, byte[] allDataHash, LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) throws Exception{
 
 		Map<String, byte[]> valueErasureCodes = encoder.encode(value);
 		byte[] metabytes = valueErasureCodes.get("metadata");
@@ -1104,10 +1212,14 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 						aux = reg.getContainerId(drivers[j].getDriverId());
 				}
 			}
-			CloudRequest r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
-					drivers[i].getSessionKey(), aux,
-					reg.getGivenVersionValueDataFileName(version), data2write.toByteArray(), null,
-					reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash);
+			CloudRequest r = null;
+			if(uploadToAnotherAccountKeys == null){
+				r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
+						aux, reg.getGivenVersionValueDataFileName(version), data2write.toByteArray(), null,
+						reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash, null);
+			}else{
+				//TODO: request to other user accounts (use uploadToAnotherAccountKeys)
+			}
 			manager.doRequest(drivers[i].getDriverId(), r);
 		}
 	}
@@ -1116,7 +1228,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	 * Broadcast to write new data when using only secret sharing (not use erasure codes)
 	 */
 	private void broadcastWriteValueSecretKeyShares(int sequence,
-			DepSkySDataUnit reg, byte[] value, String version, byte[] allDataHash) throws Exception{
+			DepSkySDataUnit reg, byte[] value, String version, byte[] allDataHash, LinkedList<Pair<String, String[]>> uploadToAnotherAccountKeys) throws Exception{
 
 		SecretKey key = MyAESCipher.generateSecretKey();
 		byte[] ciphValue = MyAESCipher.myEncrypt(key, value);
@@ -1133,10 +1245,15 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			oos.writeObject(obj);
 			oos.close();
 			//send request
-			CloudRequest r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
-					drivers[i].getSessionKey(), reg.getContainerId(drivers[i].getDriverId()),
-					reg.getGivenVersionValueDataFileName(version), data2write.toByteArray(), null,
-					reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash);
+			CloudRequest r = null;
+			if(uploadToAnotherAccountKeys == null){
+				r = new CloudRequest(DepSkySCloudManager.NEW_DATA, sequence,
+						reg.getContainerId(drivers[i].getDriverId()),
+						reg.getGivenVersionValueDataFileName(version), data2write.toByteArray(), null,
+						reg, DepSkySManager.WRITE_PROTO, false, version, null, allDataHash, null);
+			}else{
+				//TODO: request to other user accounts (use uploadToAnotherAccountKeys)
+			}
 			manager.doRequest(drivers[i].getDriverId(), r);
 		}
 
@@ -1178,7 +1295,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 	}
 
 	private byte[] recombineSecretKeyShares(DepSkySDataUnit reg, Share[] shares)
-			throws IOException, ClassNotFoundException, InvalidVSSScheme {
+			throws IOException, ClassNotFoundException, InvalidVSSScheme, ErrorDecryptingException {
 		PVSSEngine engine = PVSSEngine.getInstance(reg.info);
 		Share[] orderedShares = new Share[N];
 		//share ordering for recombination to process or else it fails
@@ -1189,7 +1306,6 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			}
 			orderedShares[s.getIndex()] = s;
 		}
-
 		return engine.generalCombineShares(orderedShares);
 	}
 
@@ -1214,6 +1330,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 	/**
 	 * Read the credentials of drivers accounts
+	 * @param filename 
 	 */
 	private List<String[][]> readCredentials() throws FileNotFoundException, ParseException{
 		Scanner sc=new Scanner(new File("config"+File.separator+"accounts.properties"));
@@ -1257,81 +1374,8 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		return list;
 	}
 
-	private boolean verifyLock(LinkedList<LinkedList<String>> L, long time, DepSkySDataUnit reg, String name) throws Exception{
-		boolean writeLock = false,  signature = false;
-		String lock_id = String.valueOf(clientId);
-		int t = 80000;
-		int count=0;
-		long delta = Long.valueOf (t);
-		if(L!=null & L.size()>=N-F){
-			for (int i = 0; i < L.size(); i++) {
 
-				if(L.get(i).size()>1){
-					String cloudName = L.get(i).get(0).toString();
-					for (int j = 1; j < L.get(i).size(); j++) {
-						String[] lock_c = L.get(i).get(j).split("_");    
-						String[] name_c = name.split("_");
-
-						if(lock_c[1].equals(name_c[1])){		      				
-
-							if(!lock_c[2].equals(lock_id)){     					
-
-								if((Long.valueOf (lock_c[3])+delta)<System.currentTimeMillis()){
-									writeLock = true;
-									deleteData(reg, L.get(i).get(j));
-								}else{
-									writeLock = false;
-								}
-
-							}else{
-								if(!lock_c[3].equals(String.valueOf(time))){
-									deleteData(reg, L.get(i).get(j));
-									writeLock = true;
-								}else{
-									signature = valid(clientId, name, reg, cloudName);
-									if(signature){
-										count++;
-										if(time+delta>System.currentTimeMillis()){
-											if(count>=F+1){
-												writeLock = true;
-											}
-
-										}else{
-											deleteData(reg, name);
-											writeLock = false;
-										}
-									}else{
-										deleteData(reg, name);
-										writeLock = false;
-									}
-								}
-
-
-							}
-						}
-
-					}
-				}else{
-					writeLock = true;
-				}
-			}
-		}
-
-		count=0;
-		return writeLock;
-	}
-
-	private boolean valid(int clientId, String name, DepSkySDataUnit reg, String driverId) throws Exception{
-		boolean valid = false;
-		byte[] signature = readFromOneCloud(reg, driverId, name);
-		if(manager.verifyMetadataSignature(clientId, name.getBytes(), signature)){
-			valid = true;
-		}
-		return valid;
-
-	}
-
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException, NumberFormatException, StorageCloudException {
 		if(new Integer(args[0]) <= 6 && new Integer(args[0]) >= 0 &&
 				new Integer(args[1]) <= 3 && new Integer(args[1]) >= 0 &&	
 				new Integer(args[2]) <= 1 && new Integer(args[2]) >= 0){
@@ -1341,7 +1385,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			System.out.println("       write 'data'   - write a new version in the selected container");
 			System.out.println("       read           - read the last version of the selected container");
 			System.out.println("       delete         - delete all the files in the selected container");
-			System.out.println("       read_m 'num'   - read old versions written in this running. If 'num' = 0 read the last version");
+			System.out.println("       read_m 'num'   - read old versions. If 'num' = 0 read the last version");
 			System.out.println();
 			boolean useClouds = true;
 			if(new Integer(args[2]) == 1){
@@ -1363,14 +1407,13 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			Scanner in = new Scanner(System.in);
 			String input;
 			byte[] rdata;
-			String lock_name = "";
 			HashMap<String, LinkedList<byte[]>> map = new HashMap<String, LinkedList<byte[]>>();
 			while(!terminate){
+				System.out.print("> ");
 				input = in.nextLine();
-
 				if(input.length() > 7 && input.substring(0, 7).equals("pick_du") && input.split(" ").length > 0){
 					StringBuilder sb = new StringBuilder(input.substring(8));
-					dataU = new DepSkySDataUnit(sb.toString());
+					dataU = new DepSkySDataUnit(sb.toString(), sb.toString());
 					if(protocol_mode == 1){
 						dataU.setUsingPVSS(true);
 					}else if(protocol_mode == 2){
@@ -1384,7 +1427,6 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 					}
 					System.out.println("DataUnit '" + sb.toString() + "' selected!");
 				}else{
-
 					if(dataU != null){
 						if(input.equals("delete")){
 							try {
@@ -1399,11 +1441,6 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 								dataU.clearAllCaches();
 								long acMil = System.currentTimeMillis();
 								rdata = localDS.read(dataU);
-
-								//LinkedList<byte[]> data = localDS.readQuorum(dataU, "lockfile");
-								//for(byte[] b : data)
-								//System.out.println("read -> " + new String(b));
-
 								long tempo = System.currentTimeMillis() - acMil;
 								System.out.println("I'm finished read -> " + Long.toString(tempo) + " milis");
 								if (rdata != null) {
@@ -1433,9 +1470,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 							}
 							try {
 								long acMil = System.currentTimeMillis();
-
 								byte[] hash = localDS.write(dataU, value);
-								//localDS.writeQuorum(dataU, value, "lockfile");
 								LinkedList<byte[]> current = map.get(dataU.getRegId());
 								current.addFirst(hash);
 								map.put(dataU.getRegId(), current);
@@ -1463,7 +1498,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 							}
 
 						}else{
-							System.out.println("Comando inv�lido!");
+							System.out.println("Invalid Comand!");
 						}
 					}else{
 						System.out.println("You need do pick a container to use. use the command pick_du.");

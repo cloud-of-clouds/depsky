@@ -1,15 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="src"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="lib/AmazonAccess.jar"/>
-	<classpathentry kind="lib" path="lib/azure-common-1.5.4.jar"/>
-	<classpathentry kind="lib" path="lib/azureblob-1.5.4.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+	<classpathentry kind="lib" path="lib/aws-java-sdk-1.7.2.jar"/>
+	<classpathentry kind="lib" path="lib/commons-codec-1.4.jar"/>
 	<classpathentry kind="lib" path="lib/commons-io-1.4.jar"/>
+	<classpathentry kind="lib" path="lib/commons-logging-1.1.1.jar"/>
 	<classpathentry kind="lib" path="lib/DepSkyDependencies.jar"/>
-	<classpathentry kind="lib" path="lib/GoogleSAccess.jar"/>
+	<classpathentry kind="lib" path="lib/httpclient-4.3.3.jar"/>
+	<classpathentry kind="lib" path="lib/httpcore-4.3.2.jar"/>
+	<classpathentry kind="lib" path="lib/jackson-annotations-2.1.1.jar"/>
+	<classpathentry kind="lib" path="lib/jackson-core-2.1.1.jar"/>
+	<classpathentry kind="lib" path="lib/jackson-databind-2.1.1.jar"/>
+	<classpathentry kind="lib" path="lib/joda-time-2.2.jar"/>
 	<classpathentry kind="lib" path="lib/JReedSolEC.jar"/>
-	<classpathentry kind="lib" path="lib/RackAzureAccess.jar"/>
+	<classpathentry kind="lib" path="lib/microsoft-windowsazure-api-0.4.6.jar"/>
 	<classpathentry kind="lib" path="lib/PVSS.jar"/>
+	<classpathentry kind="lib" path="lib/jets3t/jackson-core-asl-1.8.1.jar"/>
+	<classpathentry kind="lib" path="lib/jets3t/jackson-mapper-asl-1.8.1.jar"/>
+	<classpathentry kind="lib" path="lib/jets3t/java-xmlbuilder-0.4.jar"/>
+	<classpathentry kind="lib" path="lib/jets3t/jets3t-0.9.1.jar"/>
+	<classpathentry kind="lib" path="lib/jets3t/servlet-api.jar"/>
+	<classpathentry kind="lib" path="lib/AmazonDriver.jar"/>
+	<classpathentry kind="lib" path="lib/GoogleStorageDriver.jar"/>
+	<classpathentry kind="lib" path="lib/RackSpaceDriver.jar"/>
+	<classpathentry kind="lib" path="lib/WindowsAzureDriver.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

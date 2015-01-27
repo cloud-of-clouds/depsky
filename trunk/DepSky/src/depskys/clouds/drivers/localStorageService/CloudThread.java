@@ -6,7 +6,7 @@ import java.net.Socket;
 import java.util.LinkedList;
 
 import message.Message;
-import depskyDep.StorageCloudException;
+import exceptions.StorageCloudException;
 
 
 public class CloudThread extends Thread{
@@ -57,7 +57,7 @@ public class CloudThread extends Thread{
 
 					}else if(message.getOp().equals("uploadData")){
 						arrayW = (byte[]) message.getBytes();
-						res = localDriver.uploadData(args.get(0), args.get(1), arrayW, args.get(2));
+						res = localDriver.uploadData(args.get(0), arrayW, args.get(1), null);
 						if(res != null){ 
 							out.writeObject(msgOK);
 						}else{
@@ -65,7 +65,7 @@ public class CloudThread extends Thread{
 						}
 
 					}else if(message.getOp().equals("downloadData")){
-						arrayW = localDriver.downloadData(args.get(0), args.get(1), args.get(2));
+						arrayW = localDriver.downloadData(args.get(0), args.get(1), null);
 						if(arrayW != null){
 							msgOK = new Message("ok", null, arrayW);
 							out.writeObject(msgOK);
@@ -73,14 +73,14 @@ public class CloudThread extends Thread{
 							out.writeObject(msgErro);
 						}	
 					}else if(message.getOp().equals("deleteData")){
-						boolean bool = localDriver.deleteData(args.get(0), args.get(1), args.get(2));
+						boolean bool = localDriver.deleteData(args.get(0), args.get(1), null);
 						if(bool){
 							out.writeObject(msgOK);
 						}else{
 							out.writeObject(msgErro);
 						}
 					}else if(message.getOp().equals("listNames")){
-						LinkedList<String> names = localDriver.listNames("");
+						LinkedList<String> names = localDriver.listNames("", "", null);
 						if(names != null){
 							Message msgOK1 = new Message("ok", names, null);
 							out.writeObject(msgOK1);
@@ -95,26 +95,13 @@ public class CloudThread extends Thread{
 							names[p] = str;
 							p++;
 						}
-						boolean bool = localDriver.deleteContainer("", names);
+						boolean bool = localDriver.deleteContainer("", names, null);
 						if(bool){
 							out.writeObject(msgOK);
 						}else{
 							out.writeObject(msgErro);
 						}
 
-					}else if(message.getOp().equals("getContainerAndDataIDsByName")){
-						String[] strs = localDriver.getContainerAndDataIDsByName(args.get(0), args.get(1), args.get(2));
-						LinkedList<String> list = new LinkedList<String>();
-
-						if(strs != null){
-							for(String a : strs){
-								list.add(a);
-							}
-							msgOK = new Message("ok", list, null);
-							out.writeObject(msgOK);
-						}else{
-							out.writeObject(msgErro);
-						}
 					}
 					//out.flush();
 				} catch (StorageCloudException e) {

@@ -50,6 +50,7 @@ public class DepSkySDataUnit implements Serializable {
         this.cloudVersions = new HashMap<String, Long>();
         this.previousMetadata = new HashMap<String, String>();
         this.isPVSS = this.isErsCodes = this.isSecSharing = false;
+        this.bucketName = null;
     }
     
     public DepSkySDataUnit(String regId, String bucketName) {

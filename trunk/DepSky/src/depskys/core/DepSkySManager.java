@@ -15,13 +15,13 @@ import java.util.LinkedList;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
+import depskyDep.DepSkySKeyLoader;
 import depskyDep.IDepSkySDriver;
 import depskys.clouds.CloudRepliesControlSet;
 import depskys.clouds.CloudReply;
 import depskys.clouds.CloudRequest;
 import depskys.clouds.DepSkySCloudManager;
 import depskys.clouds.ICloudDataManager;
-import depskys.other.DepSkySKeyLoader;
 
 /**
  * Class that process and construct new metadata files, and also do some security evaluations
@@ -37,6 +37,8 @@ public class DepSkySManager implements ICloudDataManager {
 	public static final int WRITE_PROTO = 1;
 	public static final int ACL_PROTO = 2;
 	public static final int DELETE_ALL = 3;
+	public static final int LOCK_PROTO = 4;
+	public static final int GC_PROTO = 5;
 	public static final String CRLF = "\r\n";
 	public DepSkySCloudManager[] driversManagers;
 	public DepSkySKeyLoader keyLoader;
@@ -46,9 +48,9 @@ public class DepSkySManager implements ICloudDataManager {
 	public ConcurrentHashMap<String, LinkedList<DepSkyMetadata>> cloud3;
 	public ConcurrentHashMap<String, LinkedList<DepSkyMetadata>> cloud4;
 
-	public DepSkySManager(IDepSkySDriver[] drivers, IDepSkySProtocol depskys) {
+	public DepSkySManager(IDepSkySDriver[] drivers, IDepSkySProtocol depskys, DepSkySKeyLoader keyLoader) {
 		this.driversManagers = new DepSkySCloudManager[drivers.length];
-		this.keyLoader = new DepSkySKeyLoader(null);
+		this.keyLoader = keyLoader;
 		this.depskys = (LocalDepSkySClient) depskys;
 
 		cloud1 = new ConcurrentHashMap<String, LinkedList<DepSkyMetadata>>();
@@ -117,6 +119,7 @@ public class DepSkySManager implements ICloudDataManager {
 			DepSkyMetadata dm = null;
 			int cont = 0;
 
+			//if is a request to delete a entire dataUnit
 			if(metadataReply.protoOp == DepSkySManager.DELETE_ALL){
 				String[] namesToDelete = new String[allmetadata.size() + 1];
 				namesToDelete[0] = metadataReply.reg.getMetadataFileName();
@@ -126,12 +129,34 @@ public class DepSkySManager implements ICloudDataManager {
 
 				DepSkySCloudManager manager = getDriverManagerByDriverId(metadataReply.cloudId);
 				CloudRequest r = new CloudRequest(DepSkySCloudManager.DEL_CONT,
-						metadataReply.sequence, manager.driver.getSessionKey(),
+						metadataReply.sequence,
 						metadataReply.container,namesToDelete,metadataReply.reg, 
-						DepSkySManager.DELETE_ALL, false);
+						DepSkySManager.DELETE_ALL, false, metadataReply.accessToOtherAccount);
 				manager.doRequest(r);
 
 				return ;
+			}
+			//if is a request do garbage collect a dataUnit
+			if(metadataReply.protoOp == DepSkySManager.GC_PROTO){
+				String[] namesToDelete = new String[allmetadata.size() - metadataReply.numVersionToKeep];
+				int j = 0;
+				for(int i = allmetadata.size() - 1; i >= 0; i--){
+					if(i >= metadataReply.numVersionToKeep)
+						namesToDelete[j] = allmetadata.get(i).getVersionFileId();
+					j++;
+				}
+				for(String a : namesToDelete){
+					System.out.println("-- " + a);
+				}
+				DepSkySCloudManager manager = getDriverManagerByDriverId(metadataReply.cloudId);
+				CloudRequest r = new CloudRequest(DepSkySCloudManager.DEL_CONT,
+						metadataReply.sequence,
+						metadataReply.container,namesToDelete,metadataReply.reg, 
+						DepSkySManager.GC_PROTO, false, metadataReply.accessToOtherAccount);
+				manager.doRequest(r);
+
+				return ;
+				
 			}
 
 			//if is a read MAtching operation
@@ -202,8 +227,13 @@ public class DepSkySManager implements ICloudDataManager {
 			metadataReply.setVersionHash(verHash);
 			metadataReply.setValueFileId(verValueFileId);//added
 
-			if(metadataReply.protoOp == DepSkySManager.ACL_PROTO){
+			if(metadataReply.protoOp == DepSkySManager.ACL_PROTO ){
 
+				depskys.dataReceived(metadataReply);
+				return;
+			}
+			
+			if(metadataReply.protoOp == DepSkySManager.LOCK_PROTO){
 				depskys.dataReceived(metadataReply);
 				return;
 			}
@@ -256,10 +286,10 @@ public class DepSkySManager implements ICloudDataManager {
 					depskys.sentOne = true;
 					DepSkySCloudManager manager = getDriverManagerByDriverId(metadataReply.cloudId);
 					CloudRequest r = new CloudRequest(DepSkySCloudManager.GET_DATA,
-							metadataReply.sequence, manager.driver.getSessionKey(),
+							metadataReply.sequence,
 							metadataReply.container, verValueFileId, null, null,
 							metadataReply.reg, metadataReply.protoOp, false,
-							ts + "", verHash, null);
+							ts + "", verHash, null, metadataReply.accessToOtherAccount);
 					r.setStartTime(metadataReply.startTime);
 					r.setMetadataReceiveTime(metadataReply.metadataReceiveTime);
 					manager.doRequest(r);//request valuedata file
@@ -267,8 +297,8 @@ public class DepSkySManager implements ICloudDataManager {
 			}//end synch this
 
 		} catch (Exception ex) {
-			ex.printStackTrace();
-			System.out.println("ERROR_PROCESSING_METADATA: " + metadataReply);
+//			ex.printStackTrace();
+//			System.out.println("ERROR_PROCESSING_METADATA: " + metadataReply);
 			metadataReply.invalidateResponse();
 		}
 	}
@@ -418,10 +448,10 @@ public class DepSkySManager implements ICloudDataManager {
 			//request to write new metadata file
 			DepSkySCloudManager manager = getDriverManagerByDriverId(reply.cloudId);
 			CloudRequest r = new CloudRequest(DepSkySCloudManager.NEW_DATA,
-					reply.sequence, manager.driver.getSessionKey(),
+					reply.sequence,
 					reply.container, reply.reg.regId + "metadata",
 					allmetadata.toByteArray(), null, reply.reg,
-					reply.protoOp, true, reply.hashMatching);
+					reply.protoOp, true, reply.hashMatching, reply.accessToOtherAccount);
 			r.setStartTime(reply.startTime);//added
 			manager.doRequest(r);
 

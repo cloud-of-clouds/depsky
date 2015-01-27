@@ -26,6 +26,7 @@ public class DepSkySCloudManager extends Thread {
 	public static final int GET_CONT_AND_DATA_ID = 7;
 	public static final int SET_ACL = 8;
 	public static final int LIST = 9;
+
 	//***//
 	private static final int MAX_RETRIES = 3;
 	public IDepSkySDriver driver;
@@ -56,7 +57,6 @@ public class DepSkySCloudManager extends Thread {
 					processReply(); // Process next reply in queue
 
 				} else if (!requests.isEmpty()) {
-
 					processRequest(); // Process next request in queue
 
 				} else {
@@ -97,17 +97,15 @@ public class DepSkySCloudManager extends Thread {
 
 				//Start the connection with the cloud associated to this driver
 				String sessid = driver.initSession();
-
 				//add the reply for this operation
-				addReply(
-						new CloudReply(request.op, request.seqNumber,
-								driver.getDriverId(), sessid, request.cid,
-								request.reg, request.protoOp, request.isMetadataFile, request.hashMatching));
+				addReply(new CloudReply(request.op, request.seqNumber,
+						driver.getDriverId(), sessid, request.cid,
+						request.reg, request.protoOp, request.isMetadataFile, request.hashMatching));
 				break;
 			case DEL_CONT:
 
 				//Delete all the files in this container (metadata and data files)
-				boolean delContRes = driver.deleteContainer(request.sid, request.namesToDelete);
+				boolean delContRes = driver.deleteContainer(request.reg.getBucketName(), request.namesToDelete, request.accessToOtherAccount);
 
 				addReply(
 						new CloudReply(request.op, request.seqNumber,
@@ -117,14 +115,15 @@ public class DepSkySCloudManager extends Thread {
 			case NEW_DATA:
 				init = System.currentTimeMillis();
 				//Writes new data in the cloud
-//				if(driver.getDriverId().equals("cloud1"))
-//					System.out.println("write -> " + new String(request.w_data));
+				//				if(driver.getDriverId().equals("cloud1"))
+				//					System.out.println("write -> " + driver.getDriverId() + (request.isMetadataFile ? " - metadata" : " - data"));
 				String ssid = driver.uploadData(request.reg.getBucketName(),
-						request.cid, request.w_data, request.did);
+						request.w_data, request.did, request.accessToOtherAccount);
+
 				r = new CloudReply(request.op, request.seqNumber,
 						driver.getDriverId(), ssid, request.cid,
 						request.reg, request.protoOp, request.isMetadataFile,
-						request.w_data, request.vNumber, request.allDataHash, null, null);
+						request.w_data, request.vNumber, request.allDataHash, null, null, request.accessToOtherAccount);
 
 				r.setStartTime(request.startTime);//added
 				r.setInitReceiveTime(init);
@@ -138,14 +137,17 @@ public class DepSkySCloudManager extends Thread {
 			case GET_DATA:
 				init = System.currentTimeMillis();
 				//download a file from the cloud
-				byte[] data = driver.downloadData(
-						request.reg.getBucketName(), request.cid, request.did);
-//				if(driver.getDriverId().equals("cloud1"))
-//					System.out.println("read -> " + new String(data));
+				//				for(int j = 0; j < request.accessToOtherAccount.length; j++){
+				//					System.out.println(driver.getDriverId() + " -> " + request.accessToOtherAccount[j]);
+				//				}
+
+				//				System.out.println("read -> " + driver.getDriverId()+ (request.isMetadataFile ? " - metadata" : " - data"));
+				byte[] data = driver.downloadData(request.reg.getBucketName(), request.did, request.accessToOtherAccount);
+				//				if(driver.getDriverId().equals("cloud1"))
 				r = new CloudReply(request.op, request.seqNumber,
 						driver.getDriverId(), data, request.cid, request.reg,
 						request.protoOp, request.isMetadataFile,
-						request.vNumber, request.vHash, request.allDataHash, request.hashMatching);
+						request.vNumber, request.vHash, request.allDataHash, request.hashMatching, request.accessToOtherAccount, request.numVersionToKeep);
 				r.setInitReceiveTime(init);
 				r.setStartTime(request.startTime);
 				if (request.isMetadataFile) {
@@ -159,7 +161,7 @@ public class DepSkySCloudManager extends Thread {
 			case DEL_DATA:
 
 				//delete a file from the cloud
-				boolean delRes = driver.deleteData(request.sid, request.cid, request.did);
+				boolean delRes = driver.deleteData(request.reg.getBucketName(), request.did, null);
 
 				addReply(
 						new CloudReply(request.op, request.seqNumber,
@@ -169,23 +171,24 @@ public class DepSkySCloudManager extends Thread {
 			case LIST:
 
 				//list all the files in the cloud that contains the string 'request.did'
-				LinkedList<String> name = driver.listNames(request.did);
+				LinkedList<String> name = driver.listNames(request.did, request.reg.getBucketName(), null);
 
 				r = new CloudReply(request.op, request.seqNumber,
-						driver.getDriverId(), request.sid, request.cid,
+						driver.getDriverId(), null, request.cid,
 						request.reg, request.protoOp, request.isMetadataFile,
-						request.w_data, request.vNumber, request.allDataHash, name, null);
+						request.w_data, request.vNumber, request.allDataHash, name, null, request.accessToOtherAccount);
 
 
 				addReply(r);
 				break;
 			case SET_ACL:
-				boolean bool = driver.setAcl(request.reg.getBucketName(), request.did, request.canonicalId, request.permission);
+				String[] credentialsToShare = driver.setAcl(request.reg.getBucketName(), request.canonicalId, request.permission);
 
 				r = new CloudReply(request.op, request.seqNumber,
-						driver.getDriverId(), bool, request.cid,
+						driver.getDriverId(), credentialsToShare, request.cid,
 						request.reg, request.protoOp, request.isMetadataFile, request.hashMatching);
 				addReply(r);
+				break;
 			default:
 				//                    System.out.println("Operation does not exist");
 				addReply(new CloudReply(request.op, request.seqNumber,
@@ -206,7 +209,7 @@ public class DepSkySCloudManager extends Thread {
 			//after MAX_REPLIES return null response
 			r = new CloudReply(request.op, request.seqNumber,
 					driver.getDriverId(), null, request.cid, request.reg,
-					request.protoOp, request.isMetadataFile, request.vNumber, request.vHash, null, null);
+					request.protoOp, request.isMetadataFile, request.vNumber, request.vHash, null, null, null, -1);
 			r.setReceiveTime(System.currentTimeMillis());
 			r.setInitReceiveTime(init);
 			r.setExceptionMessage(ex.getMessage());
@@ -251,8 +254,8 @@ public class DepSkySCloudManager extends Thread {
 						reply.reg.setContainerId(reply.cloudId, ((String[]) reply.response)[0]);
 					}
 					CloudRequest r = new CloudRequest(GET_DATA, reply.sequence,
-							driver.getSessionKey(), ids[0], ids[1], null, null,
-							reply.reg, reply.protoOp, true, reply.hashMatching);
+							ids[0], ids[1], null, null,
+							reply.reg, reply.protoOp, true, reply.hashMatching, null);
 					r.setStartTime(reply.startTime);
 					doRequest(r);
 				} else if (reply.type == NEW_DATA && !reply.isMetadataFile

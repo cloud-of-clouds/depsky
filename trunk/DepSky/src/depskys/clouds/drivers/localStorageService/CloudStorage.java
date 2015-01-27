@@ -10,7 +10,7 @@ import java.util.LinkedList;
 import java.util.Properties;
 
 import depskyDep.IDepSkySDriver;
-import depskyDep.StorageCloudException;
+import exceptions.StorageCloudException;
 
 /**
  * 
@@ -38,7 +38,7 @@ public class CloudStorage implements IDepSkySDriver {
 		}
 	}
 
-	public String uploadData(String sid, String cid, byte[] data, String id) throws StorageCloudException {
+	public String uploadData(String bucket, byte[] data, String id, String[] uploadToAnotherAccount) throws StorageCloudException {
 		try {
 			String p = staticpath + mainPath + File.separator + id;
 			File newf = new File(p);
@@ -51,7 +51,7 @@ public class CloudStorage implements IDepSkySDriver {
 		}
 	}
 
-	public byte[] downloadData(String sid, String cid, String id) throws StorageCloudException {
+	public byte[] downloadData(String bucket, String id, String[] uploadToAnotherAccount) throws StorageCloudException {
 		try {
 			String p = staticpath + mainPath + File.separator + id;
 			FileInputStream fis = new FileInputStream(new File(p));
@@ -67,7 +67,7 @@ public class CloudStorage implements IDepSkySDriver {
 		}
 	}
 
-	public boolean deleteData(String sid, String cid, String id) throws StorageCloudException {
+	public boolean deleteData(String bucket, String id, String[] uploadToAnotherAccount) throws StorageCloudException {
 		File f = new File(staticpath + File.separator + mainPath + File.separator + id);
 		if(f.exists()){
 			f.delete();
@@ -76,7 +76,7 @@ public class CloudStorage implements IDepSkySDriver {
 		return true;
 	}
 
-	public boolean deleteContainer(String sid, String[] allNames ) throws StorageCloudException {
+	public boolean deleteContainer(String bucket, String[] allNames, String[] uploadToAnotherAccount) throws StorageCloudException {
 
 		File file;
 		for (int i = 0; i < allNames.length; i++){
@@ -103,7 +103,7 @@ public class CloudStorage implements IDepSkySDriver {
 		return "sid";
 	}
 
-	public LinkedList<String> listNames(String prefix) {
+	public LinkedList<String> listNames(String prefix, String sid, String[] uploadToAnotherAccount) {
 
 		LinkedList<String> names = new LinkedList<String>();
 		String p = staticpath + mainPath + File.separator;
@@ -115,25 +115,13 @@ public class CloudStorage implements IDepSkySDriver {
 		return names;
 	}
 
-	public String getDataIdByName(String sid, String data_filename) throws StorageCloudException {
-		return null;
-	}
-
-	public String[] getContainerAndDataIDsByName(String sid, String containername, String dataname) throws StorageCloudException {
-		File f = new File(staticpath + mainPath + File.separator + containername + File.separator + dataname);
-		if (f.exists()) {
-			return new String[]{containername, dataname};
-		} else {
-			throw new StorageCloudException(containername + " and/or " + dataname + " may not exist...");
-		}
-	}
-
 	public String initSession() throws StorageCloudException {
 		return null;
 	}
 
-	public boolean setAcl(String arg0, String arg1, String arg2, String arg3)
+	
+	public String[] setAcl(String bucket, String[] canonicalId, String permission)
 			throws StorageCloudException {
-		return false;
+		return null;
 	}
 }

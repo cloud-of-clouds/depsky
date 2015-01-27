@@ -10,7 +10,7 @@ import java.util.LinkedList;
 
 import message.Message;
 import depskyDep.IDepSkySDriver;
-import depskyDep.StorageCloudException;
+import exceptions.StorageCloudException;
 
 /**
  *
@@ -58,20 +58,10 @@ public class LocalDiskDriver implements IDepSkySDriver {
 		mainPath = driverpath;
 	}
 
-	private void init() {
-		File f = new File(staticpath + File.separator + mainPath);
-		if (!f.exists()) {
-			f.mkdirs();
-		} else {
-			//System.out.println("path " + f.getPath() + " already exist... ");
-		}
-	}
-
-	public String uploadData(String sid, String cid, byte[] data, String id) throws StorageCloudException {
+	public String uploadData(String bucket, byte[] data, String id, String[] uploadToAnotherAccount) throws StorageCloudException {
 		try {
 			args.clear();
-			args.add(sid);
-			args.add(cid);
+			args.add(bucket);
 			args.add(id);
 			Message msg = new Message("uploadData", args, data);
 			out.writeObject(msg);
@@ -93,12 +83,11 @@ public class LocalDiskDriver implements IDepSkySDriver {
 		}
 	}
 
-	public byte[] downloadData(String sid, String cid, String id) throws StorageCloudException {
+	public byte[] downloadData(String bucket, String id, String[] uploadToAnotherAccount) throws StorageCloudException {
 		try {
 
 			args.clear();
-			args.add(sid);
-			args.add(cid);
+			args.add(bucket);
 			args.add(id);
 			Message msg = new Message("downloadData", args, null);
 			out.writeObject(msg);
@@ -122,12 +111,11 @@ public class LocalDiskDriver implements IDepSkySDriver {
 		}
 	}
 
-	public boolean deleteData(String sid, String cid, String id) throws StorageCloudException {
+	public boolean deleteData(String bucket, String id, String[] uploadToAnotherAccount) throws StorageCloudException {
 
 		try{
 			args.clear();
-			args.add(sid);
-			args.add(cid);
+			args.add(bucket);
 			args.add(id);
 			Message msg = new Message("deleteData", args, null);
 			out.writeObject(msg);
@@ -149,7 +137,7 @@ public class LocalDiskDriver implements IDepSkySDriver {
 		}
 	}
 
-	public LinkedList<String> listNames(String prefix) throws StorageCloudException{
+	public LinkedList<String> listNames(String prefix, String sid, String[] uploadToAnotherAccount) throws StorageCloudException{
 
 		try{
 			args.clear();
@@ -184,33 +172,8 @@ public class LocalDiskDriver implements IDepSkySDriver {
 		return null;
 	}
 
-	public String createContainer(String sid, String cid) throws StorageCloudException {
-		try{
-			args.clear();
-			args.add(sid);
-			args.add(cid);
-			Message msg = new Message("createContainer", args, null);
-			out.writeObject(msg);
-			out.reset();
-			try {
-				msg = (Message) in.readObject();
-				if(msg.getOp().equals("ok")){
-					//System.out.println("Download executado com sucesso");
-					return cid;
-				}else{
-					//System.out.println("download com problemas");
-					throw new StorageCloudException("Container creation failed... maybe container already exist.");
-				}
-			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
-			}
-			return null;
-		} catch (Exception e) {
-			throw new StorageCloudException(e.getMessage());
-		}
-	}
 
-	public boolean deleteContainer(String sid, String[] allNames) throws StorageCloudException {
+	public boolean deleteContainer(String bucket, String[] allNames, String[] uploadToAnotherAccount) throws StorageCloudException {
 		try{
 			args.clear();
 			//args.add(sid);
@@ -255,47 +218,11 @@ public class LocalDiskDriver implements IDepSkySDriver {
 		return "sid";
 	}
 
-	public String getDataIdByName(String sid, String data_filename) throws StorageCloudException {
+	@Override
+	public String[] setAcl(String bucket, String[] canonicalId, String permission) throws StorageCloudException {
+		// TODO Auto-generated method stub
 		return null;
 	}
 
-	public String[] getContainerAndDataIDsByName(String sid, String containername, String dataname) throws StorageCloudException {
-		try{
-			args.clear();
-			args.add(sid);
-			args.add(containername);
-			args.add(dataname);
-			Message msg = new Message("getContainerAndDataIDsByName", args, null);
-			out.writeObject(msg);
-			out.reset();
-			try {
-				msg = (Message) in.readObject();
-				if(msg.getOp().equals("ok") && msg.getArgs() != null){
-					//System.out.println("Delete executado com sucesso");
-					LinkedList<String> l = msg.getArgs();
-					String[] str = new String[l.size()];
-					int i = 0;
-					for(String a : l){
-						str[i] = a;
-						i++;
-					}
-					return str;
-				}else{
-					//System.out.println("delete com problemas");
-					throw new StorageCloudException("Container creation failed... maybe container already exist.");
-				}
-			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
-			}
-			return null;
-		} catch (IOException e) {
-			throw new StorageCloudException(e.getMessage());
-		}
-	}
 
-	public boolean setAcl(String arg0, String arg1, String arg2, String arg3)
-			throws StorageCloudException {
-		// TODO Auto-generated method stub
-		return false;
-	}
 }
