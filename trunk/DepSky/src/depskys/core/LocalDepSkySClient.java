@@ -120,10 +120,6 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 						secretKey = pair[1];
 					}
 				}
-				//				if(type.equals("AMAZON-S3")){
-				//					this.awsSecretKey = secretKey;
-				//					this.awsAcccessKey = accessKey;
-				//				}
 				drivers[i] = DriversFactory.getDriver(type, driverId, accessKey, secretKey);
 			}
 		}	
