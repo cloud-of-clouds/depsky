@@ -532,41 +532,11 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 	}
 
-	/**
-	 * NOT SUPORTED YET (waiting that all clouds support ACLs by container)
-	 */
 	public LinkedList<Pair<String, String[]>> setAcl(DepSkySDataUnit reg, String permission, LinkedList<Pair<String, String[]>> cannonicalIds) throws Exception {
 
 		CloudRepliesControlSet wrcs = null;
 
 		try{
-			//			int seq = getNextSequence();
-			//			rcs = new CloudRepliesControlSet(N, seq);
-			//			replies.put(seq, rcs);
-			//			broadcastGetMetadata(seq, reg,
-			//					DepSkySManager.ACL_PROTO, null);
-			//			rcs.waitReplies.acquire();
-			//			lastMetadataReplies = rcs.replies;
-			//			//process replies and actualize version
-			//			int nullCounter = 0;
-			//			long maxVersionFound = -1;
-			//			for (int i = 0; i < rcs.replies.size(); i++) {
-			//				CloudReply r = rcs.replies.get(i);
-			//				if (r.response == null || r.type != DepSkySCloudManager.GET_DATA
-			//						|| r.vNumber == null) {
-			//					nullCounter++;
-			//					continue;
-			//				} else {
-			//					long version = Long.parseLong(r.vNumber);
-			//					if (version > maxVersionFound) {
-			//						maxVersionFound = version;
-			//					}
-			//				}
-			//			}
-			//			if(nullCounter > F){
-			//				//fazer qualquer coisa
-			//			}
-
 			int seq = getNextSequence();
 			wrcs = new CloudRepliesControlSet(N, seq);
 			broadcastSetContainersACL(seq, reg, DepSkySManager.ACL_PROTO, 0, permission, cannonicalIds);
