@@ -532,7 +532,7 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 
 	}
 
-	public LinkedList<Pair<String, String[]>> setAcl(DepSkySDataUnit reg, String permission, LinkedList<Pair<String, String[]>> cannonicalIds) throws Exception {
+	public synchronized LinkedList<Pair<String, String[]>> setAcl(DepSkySDataUnit reg, String permission, LinkedList<Pair<String, String[]>> cannonicalIds) throws Exception {
 
 		CloudRepliesControlSet wrcs = null;
 
@@ -571,11 +571,9 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 				}
 			}
 			if(nullResponses >= F)
-				throw new Exception("Set ACL: at least n-f clouds failed.");
+				throw new Exception("Set ACL: at least f clouds failed.");
 			return cred;
 		} catch (Exception ex) {
-			//System.out.println("DEPSKYS WRITE ERROR: " + ex.getMessage());
-			//ex.printStackTrace();
 			throw ex;
 		} 
 	}
