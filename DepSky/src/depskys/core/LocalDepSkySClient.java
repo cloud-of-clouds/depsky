@@ -577,6 +577,83 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 			throw ex;
 		} 
 	}
+	
+	public synchronized String lock(DepSkySDataUnit reg, int retries) throws Exception {
+		String lock_id = null;
+		boolean terminate = false;
+		int writeLock = LOCK_UNVAILABLE;
+		boolean result = false;
+		int count=0;
+		Random r = new Random();
+
+		lock_id = String.valueOf(clientId);
+		String name = null;
+		while(!terminate){
+			long time = System.currentTimeMillis();
+			name ="lock_" + reg.getRegId()+"_"+lock_id+"_"+time;
+			LinkedList<LinkedList<String>> L = listQuorum(reg, "lock_" + reg.getRegId());
+
+			lock_id = String.valueOf(clientId);
+			writeLock = verifyLock(L, time, reg, name);
+
+			if(writeLock == LOCK_AVAILABLE || writeLock == RENEW){            	
+				byte[] signature = manager.getSignature(name.getBytes());      
+				writeQuorum(reg, signature, name);
+				if(writeLock == RENEW){
+					System.out.println("RENEW");
+					for(int i = 0; i < L.size(); i++){
+						for(int j = 1; j < L.get(i).size(); j++){
+							String[] lock_c = L.get(i).get(j).split("_");
+							if(lock_c[2].equals(lock_id))
+								deleteData(reg, L.get(i).get(j));
+						}
+					}
+				}
+
+				L=null;
+				L=listQuorum(reg, "lock_" + reg.getRegId());
+
+				writeLock = verifyLock(L, time, reg, name);            	
+				if (writeLock == LOCK_AVAILABLE || writeLock == RENEW) {
+					result = true;
+					lock_id=null;
+					L=null;
+					terminate=true;
+				}else{
+					if(retries==0){
+						terminate=true;
+					}else{
+						count++;
+						Thread.sleep(1000+r.nextInt(1000));
+					}
+					result = false;
+				}
+			}else{
+				if(retries==0){
+					terminate=true;
+				}else{
+					count++;
+					Thread.sleep(1000+r.nextInt(1000));
+				}
+				result = false;
+			}
+			if(retries!=-1){
+				if(count>retries){
+					terminate = true;
+				}
+			}
+		}
+		if(result)
+			return name;
+		else
+			return null;
+
+	}
+
+	public synchronized void unlock(DepSkySDataUnit reg, String name){
+		deleteData(reg, name);
+	}
+
 
 
 	/**
@@ -1291,7 +1368,90 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		}
 		return result;
 	}
+	
+	private int verifyLock(LinkedList<LinkedList<String>> L, long time, DepSkySDataUnit reg, String name) throws Exception{
 
+		boolean signature = false;
+		int writeLock = LOCK_UNVAILABLE;
+		String lock_id = String.valueOf(clientId);
+		int t = 400000;
+		int count=0;
+		long delta = Long.valueOf (t);
+		if(L!=null & L.size()>=N-F){
+			for (int i = 0; i < L.size(); i++) {
+
+				if(L.get(i).size()>1){
+					String cloudName = L.get(i).get(0).toString();
+					for (int j = 1; j < L.get(i).size(); j++) {
+
+						String[] lock_c = L.get(i).get(j).split("_");    
+						String[] name_c = name.split("_");
+						if(L.get(i).size() >= 3){
+							deleteData(reg, name);
+							return LOCK_UNVAILABLE;
+						}
+
+						if(lock_c[1].equals(name_c[1])){		 
+
+							if(!lock_c[2].equals(lock_id)){     					
+								long milis = System.currentTimeMillis();
+
+								if((Long.valueOf (lock_c[3])+delta)<milis){									
+									writeLock = LOCK_AVAILABLE;
+									deleteData(reg, L.get(i).get(j));
+								}else{
+									writeLock = LOCK_UNVAILABLE;
+								}
+
+							}else{
+								if(Long.valueOf(lock_c[3]) < time){
+									//deleteData(reg, L.get(i).get(j));
+									writeLock = RENEW;
+								}else{
+									signature = valid(clientId, name, reg, cloudName);
+									if(signature){
+										count++;
+										if(time+delta>System.currentTimeMillis()){
+											if(count>=F+1){
+												writeLock = LOCK_AVAILABLE;
+											}else
+												writeLock = LOCK_UNVAILABLE;
+
+										}else{
+											deleteData(reg, name);
+											writeLock = LOCK_UNVAILABLE;
+										}
+									}else{
+										deleteData(reg, name);
+										writeLock = LOCK_UNVAILABLE;
+									}
+								}
+
+
+							}
+						}
+
+					}
+				}else{
+					writeLock = LOCK_AVAILABLE;
+				}
+			}
+		}
+
+		count=0;
+		return writeLock;
+	}
+
+	private boolean valid(int clientId, String name, DepSkySDataUnit reg, String driverId) throws Exception{
+		boolean valid = false;
+		byte[] signature = readFromOneCloud(reg, driverId, name);
+		if(manager.verifyMetadataSignature(clientId, name.getBytes(), signature)){
+			valid = true;
+		}
+		return valid;
+
+	}
+	
 	/**
 	 * Read the credentials of drivers accounts
 	 * @param filename 
