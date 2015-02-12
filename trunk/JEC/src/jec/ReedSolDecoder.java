@@ -1,4 +1,7 @@
 package jec;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
 import java.util.Map;
 
 
@@ -30,7 +33,7 @@ public class ReedSolDecoder {
 		byte[][] coding = new byte[m][];
 
 		/* Create coding matrix or bitmatrix */
-		int[] matrix = ReedSolomon.vandermondeCodingMatrix(k, m, w);
+		int[] matrix = ReedSolOperations.vandermondeCodingMatrix(k, m, w);
 
 		/* Begin decoding process */
 		int blocksize = 0;				// size of individual files
@@ -82,8 +85,6 @@ public class ReedSolDecoder {
 		return data;
 
 	}
-
 	
-
 }
 
