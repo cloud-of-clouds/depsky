@@ -1,5 +1,7 @@
 package jec;
-import java.io.File;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,12 +29,6 @@ public class ReedSolEncoder {
 
 	public Map<String, byte[]> encode(byte[] srcData) {
 
-		/* Create Coding directory */
-		File dir = new File("Coding");
-		if(!dir.exists()){
-			dir.mkdir();
-		}
-
 		/* Determine original size of file */
 		int size = srcData.length;
 
@@ -52,7 +48,7 @@ public class ReedSolEncoder {
 		}
 
 		/* Create coding matrix or bitmatrix and schedule */
-		int[] matrix = ReedSolomon.vandermondeCodingMatrix(k, m, w);
+		int[] matrix = ReedSolOperations.vandermondeCodingMatrix(k, m, w);
 
 		/* Set pointers to point to file data */
 		int copied = 0;
@@ -85,5 +81,5 @@ public class ReedSolEncoder {
 		return res;
 
 	}
-
+	
 }
