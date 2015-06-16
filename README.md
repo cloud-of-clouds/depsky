@@ -100,12 +100,19 @@ To test DepSky we provide a simple main that can be found in _src.depskys.core.L
 * The first one is the client id (for now use ids below 6 because we only have keys generated for ids until the 6).
 
 * The second argument indicates what protocol will be used to replicate the data. There are 4 possibilities:
+ 
   * 0 means that will be used DepSky-A (there is no erasure codes neither secret sharing).
+ 
   * 1 to use DepSky-CA (use erasure codes and secret sharing).
+ 
   * 2 for use only erasure codes.
+ 
   * 3 to use only secret sharing.
+
 * The third argument indicated the storage location.
+ 
   * 0 if you want to use cloud storage to replicate the data.
+ 
   * 1 if you want to store all the data locally (testing purposes). If you want to use the local storage you need first run the server that can be found in _src.depskys.clouds.drivers.localStorageService.ServerThread_. To run this server you can use the _Run_LocalStorage.sh_ script at the root fo the project. This server will receive all requests at ip _127.0.0.1_ and port _5555_.
 
 Let us give you an example.
