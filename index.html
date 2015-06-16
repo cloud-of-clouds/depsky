@@ -69,6 +69,228 @@
 
 <p>For more information see the DepSky paper. You can find it here <a href="http://www.di.fc.ul.pt/%7Ebessani/publications/eurosys11-depsky.pdf">EuroSys'11 paper</a>.</p>
 
+<hr>
+
+<h2>
+<a id="getting-started-with-depsky" class="anchor" href="#getting-started-with-depsky" aria-hidden="true"><span class="octicon octicon-link"></span></a>Getting Started with DepSky</h2>
+
+<p>This section explains you how to create the providers accounts to form a cloud-of-clouds environment.
+If you want to test DepSky without create the accounts, you can use local storage instead.
+Please read the next section called <a href="#testing-depsky">Testing DepSky</a>.</p>
+
+<p>First of all, you need to download the latest stable version available and extract it.
+Make sure you have java 1.7 or later installed.</p>
+
+<p>Done this, you need to fill up the <em>accounts.properties</em> file (you can find it inside the config folder).
+To fill up this file you need first create accounts in the cloud providers we support.
+To do that follow the links below:</p>
+
+<ul>
+<li><p><a href="http://aws.amazon.com/s3/"><em>Amazon S3</em></a></p></li>
+<li><p><a href="https://developers.google.com/storage/"><em>Google Storage</em></a></p></li>
+<li><p><a href="http://www.rackspace.co.uk/"><em>RackSpace Files</em></a></p></li>
+<li><p><a href="https://www.windowsazure.com/en-us/"><em>Windows Azure Strorage</em></a></p></li>
+</ul>
+
+<p>After create the accounts you have access to yours API keys and so, you can fill up the accounts.properties file. To help you to find your keys, follow the steps below.</p>
+
+<ul>
+<li><p>To find Amazon s3 keys go to the AWS Management Console, click in S3 service, now, in the upper right corner click in your account name and go to the Security Credentials. After that, in the Access Keys separator you can generate your access and secret keys.</p></li>
+<li><p>To find Google Storage keys go to the Google API Console, and then go to the Google Cloud Storage separator. Now choose Interoperable Access and there you can find your keys. Don't forget first enable Google Cloud Storage in the services separator.</p></li>
+<li><p>To find RackSpace? keys, go to the Control Panel. In the upper right corner you can find how to get your secret key. The access key is just your login username.</p></li>
+<li><p>To find Windows Azure keys go to the windows azure portal. First you need to create a new storage project. After select this new project, at the bottom of the page, you can find the key management. In this case your access key is your storage project name and you secret key is the primary key in the key management.</p></li>
+</ul>
+
+<p>If you only want to use Amazon S3 as your cloud storage provider, you can only create one account at Amazon S3 and use the example file provided (<em>config/accounts_amazon.properties</em>). To do that, copy the content of the 'accounts_amazon.properties' file to the one mentioned before (<em>config/accounts.properties</em>). In this case will be used four different Amazon S3 locations to store the data (US_Standard, EU_Ireland, US_West and AP_Tokyo).</p>
+
+<p>Now all the setup is finished and DepSky is ready to be used.</p>
+
+<h2>
+<a id="testing-depsky" class="anchor" href="#testing-depsky" aria-hidden="true"><span class="octicon octicon-link"></span></a>Testing DepSky</h2>
+
+<p>To test DepSky we provide a simple main that can be found in <em>src.depskys.core.LocalDepSkySClient</em>. To run this main use the <em>DepSky_Run.sh</em> scritp at the root of the project providing 3 arguments:</p>
+
+<ul>
+<li><p>The first one is the client id (for now use ids below 6 because we only have keys generated for ids until the 6).</p></li>
+<li>
+<p>The second argument indicates what protocol will be used to replicate the data. There are 4 possibilities:</p>
+
+<ul>
+<li>0 means that will be used DepSky-A (there is no erasure codes neither secret sharing).</li>
+<li>1 to use DepSky-CA (use erasure codes and secret sharing).</li>
+<li>2 for use only erasure codes.</li>
+<li>3 to use only secret sharing.</li>
+</ul>
+</li>
+<li>The third argument indicated the storage location.
+
+<ul>
+<li>0 if you want to use cloud storage to replicate the data.</li>
+<li>1 if you want to store all the data locally (testing purposes). If you want to use the local storage you need first run the server that can be found in <em>src.depskys.clouds.drivers.localStorageService.ServerThread</em>. To run this server you can use the <em>Run_LocalStorage.sh</em> script at the root fo the project. This server will receive all requests at ip <em>127.0.0.1</em> and port <em>5555</em>.</li>
+</ul>
+</li>
+</ul>
+
+<p>Let us give you an example.
+If we run DepSky with the command below, we gonna start a session with the client id 0, all the data will be replicated using erasure codes and secret sharing and will be stored on the cloud providers.</p>
+
+<p><code>$ ./DepSky_Run 0 1 0</code></p>
+
+<p>This main allow you to read, write and delete. You have five commands available:</p>
+
+<ul>
+<li><p><em>pick_du 'name'</em> - will change the container that you are using to read and write.</p></li>
+<li><p><em>write 'data'</em> - will write a new version with the content 'data' over the container selected.</p></li>
+<li><p><em>read</em> - will read the last version written to the container selected</p></li>
+<li><p><em>delete</em> - will delete all the data (data and metadata files) associated with the container selected.</p></li>
+<li><p><em>read_m 'num'</em> - will read old versions over the container selected. If 'num' = 0, will read the last version written, if 'num' = 1, will read the penultimate version written, etc. Note that only is possible read old versions written in this session because this main maintain all the information in memory. To read all the old versions this main must be changed.</p></li>
+</ul>
+
+<p>This main is not enough to take advantage of all the functionalities provided by DepSky. To learn more about all you can do with DepSky read the nexte section.</p>
+
+<h2>
+<a id="using-depsky-as-a-library" class="anchor" href="#using-depsky-as-a-library" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using DepSky as a Library</h2>
+
+<p>To start, you need to create a <em>src.depskys.core.LocalDepSkySClient</em> object. As you can see below, the constructor receive the client id and a <em>boolean</em>. If the <em>boolean</em> value is set to <em>false</em>, will be used the <strong>local storage</strong>, otherwise will be used the <strong>cloud storage</strong>.</p>
+
+<div class="highlight highlight-java"><pre><span class="pl-k">public</span> LocalDepSkySClient(<span class="pl-k">int</span> clientId, <span class="pl-k">boolean</span> useModel) throws <span class="pl-smi">StorageCloudException</span> {
+
+        <span class="pl-v">this</span><span class="pl-k">.</span>clientId <span class="pl-k">=</span> clientId;
+        <span class="pl-smi">DepSkySKeyLoader</span> keyLoader <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">DepSkySKeyLoader</span>(<span class="pl-c1">null</span>);
+        <span class="pl-k">if</span>(<span class="pl-k">!</span>useModel){
+                <span class="pl-v">this</span><span class="pl-k">.</span>cloud1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">LocalDiskDriver</span>(<span class="pl-s"><span class="pl-pds">"</span>cloud1<span class="pl-pds">"</span></span>);
+                <span class="pl-v">this</span><span class="pl-k">.</span>cloud2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">LocalDiskDriver</span>(<span class="pl-s"><span class="pl-pds">"</span>cloud2<span class="pl-pds">"</span></span>);
+                <span class="pl-v">this</span><span class="pl-k">.</span>cloud3 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">LocalDiskDriver</span>(<span class="pl-s"><span class="pl-pds">"</span>cloud3<span class="pl-pds">"</span></span>);
+                <span class="pl-v">this</span><span class="pl-k">.</span>cloud4 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">LocalDiskDriver</span>(<span class="pl-s"><span class="pl-pds">"</span>cloud4<span class="pl-pds">"</span></span>);
+                <span class="pl-v">this</span><span class="pl-k">.</span>drivers <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">IDepSkySDriver</span>[]{cloud1, cloud2, cloud3, cloud4};
+        }<span class="pl-k">else</span>{  
+                <span class="pl-k">List&lt;<span class="pl-k">String</span>[][]&gt;</span> credentials <span class="pl-k">=</span> <span class="pl-c1">null</span>;
+                <span class="pl-k">try</span> {
+                        credentials <span class="pl-k">=</span> readCredentials();
+                } <span class="pl-k">catch</span> (<span class="pl-smi">FileNotFoundException</span> e) {     
+                        <span class="pl-smi">System</span><span class="pl-k">.</span>out<span class="pl-k">.</span>println(<span class="pl-s"><span class="pl-pds">"</span>accounts.properties file dosen't exist!<span class="pl-pds">"</span></span>);
+                        e<span class="pl-k">.</span>printStackTrace();
+                } <span class="pl-k">catch</span> (<span class="pl-smi">ParseException</span> e) {
+                        <span class="pl-smi">System</span><span class="pl-k">.</span>out<span class="pl-k">.</span>println(<span class="pl-s"><span class="pl-pds">"</span>accounts.properties misconfigured!<span class="pl-pds">"</span></span>);               
+                        e<span class="pl-k">.</span>printStackTrace();
+                }
+                <span class="pl-v">this</span><span class="pl-k">.</span>drivers <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">IDepSkySDriver</span>[<span class="pl-c1">4</span>];
+                <span class="pl-smi">String</span> type <span class="pl-k">=</span> <span class="pl-c1">null</span>, driverId <span class="pl-k">=</span> <span class="pl-c1">null</span>, accessKey <span class="pl-k">=</span> <span class="pl-c1">null</span>, secretKey <span class="pl-k">=</span> <span class="pl-c1">null</span>;
+                <span class="pl-k">for</span>(<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span> ; i <span class="pl-k">&lt;</span> credentials<span class="pl-k">.</span>size(); i<span class="pl-k">++</span>){
+                        <span class="pl-k">for</span>(<span class="pl-k">String</span>[] pair <span class="pl-k">:</span> credentials<span class="pl-k">.</span>get(i)){
+                                <span class="pl-k">if</span>(pair[<span class="pl-c1">0</span>]<span class="pl-k">.</span>equalsIgnoreCase(<span class="pl-s"><span class="pl-pds">"</span>driver.type<span class="pl-pds">"</span></span>)){
+                                        type <span class="pl-k">=</span> pair[<span class="pl-c1">1</span>];
+                                }<span class="pl-k">else</span> <span class="pl-k">if</span>(pair[<span class="pl-c1">0</span>]<span class="pl-k">.</span>equalsIgnoreCase(<span class="pl-s"><span class="pl-pds">"</span>driver.id<span class="pl-pds">"</span></span>)){
+                                        driverId <span class="pl-k">=</span> pair[<span class="pl-c1">1</span>];
+                                }<span class="pl-k">else</span> <span class="pl-k">if</span>(pair[<span class="pl-c1">0</span>]<span class="pl-k">.</span>equalsIgnoreCase(<span class="pl-s"><span class="pl-pds">"</span>accessKey<span class="pl-pds">"</span></span>)){
+                                        accessKey <span class="pl-k">=</span> pair[<span class="pl-c1">1</span>];
+                                }<span class="pl-k">else</span> <span class="pl-k">if</span>(pair[<span class="pl-c1">0</span>]<span class="pl-k">.</span>equalsIgnoreCase(<span class="pl-s"><span class="pl-pds">"</span>secretKey<span class="pl-pds">"</span></span>)){
+                                        secretKey <span class="pl-k">=</span> pair[<span class="pl-c1">1</span>];
+                                }
+                        }
+                        drivers[i] <span class="pl-k">=</span> <span class="pl-smi">DriversFactory</span><span class="pl-k">.</span>getDriver(type, driverId, accessKey, secretKey);
+                }
+        }       
+        <span class="pl-v">this</span><span class="pl-k">.</span>manager <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">DepSkySManager</span>(drivers, <span class="pl-v">this</span>, keyLoader);
+        <span class="pl-v">this</span><span class="pl-k">.</span>replies <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">HashMap&lt;<span class="pl-smi">Integer</span>, <span class="pl-smi">CloudRepliesControlSet</span>&gt;</span>();
+        <span class="pl-v">this</span><span class="pl-k">.</span><span class="pl-smi">N</span> <span class="pl-k">=</span> drivers<span class="pl-k">.</span>length;
+        <span class="pl-v">this</span><span class="pl-k">.</span><span class="pl-smi">F</span> <span class="pl-k">=</span> <span class="pl-c1">1</span>;
+        <span class="pl-v">this</span><span class="pl-k">.</span>encoder <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">ReedSolEncoder</span>(<span class="pl-c1">2</span>, <span class="pl-c1">2</span>, <span class="pl-c1">8</span>);
+        <span class="pl-v">this</span><span class="pl-k">.</span>decoder <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">ReedSolDecoder</span>(<span class="pl-c1">2</span>, <span class="pl-c1">2</span>, <span class="pl-c1">8</span>);
+
+        <span class="pl-k">if</span>(<span class="pl-k">!</span>startDrivers()){
+                <span class="pl-smi">System</span><span class="pl-k">.</span>out<span class="pl-k">.</span>println(<span class="pl-s"><span class="pl-pds">"</span>Connection Error!<span class="pl-pds">"</span></span>);
+        }
+  }</pre></div>
+
+<p>The second step is create too many <em>src.depskys.core.DepSkySDataUnit</em> objects as you want.
+Each object of this type represents our storage model.
+Concretely, a <em>src.depskys.core.DepSkySDataUnit</em> refers to an object that have associated one metadata file and all the versions written to it.
+The example bellow illustrate it.</p>
+
+<pre><code>  exampleFilemetadata
+  exampleFilevalue1004
+  exampleFilevalue2004
+  exampleFilevalue3004
+  ...
+</code></pre>
+
+<p>Each <em>DepSkySDataUnit</em> object contains information about the protocol used to replicate the data, the metadata information, the written versions, etc. Furthermore, each one of these objects (by that we mean all the files associated with it) can be stored in a different bucket. There are two ways to create a <em>DepSkySDataUnit</em> object. The first example below (1) will write to a container named regId (which will contain regIdmetadata and regIdvalue files) inside a default bucket of DepSky. Using the second example a user is able to specify the bucket where the data will be stored.</p>
+
+<div class="highlight highlight-java"><pre>  (<span class="pl-c1">1</span>)
+  <span class="pl-k">public</span> DepSkySDataUnit(<span class="pl-smi">String</span> regId) {
+  <span class="pl-c1">...</span>
+
+  (<span class="pl-c1">2</span>)
+  <span class="pl-k">public</span> DepSkySDataUnit(<span class="pl-smi">String</span> regId, <span class="pl-smi">String</span> bucketName) {
+  <span class="pl-c1">...</span></pre></div>
+
+<p>After creating a <em>DepSkySDataUnitobject</em>, you need to specify what protocol will be used to replicate the data that will be written in this container. By default, each <em>DepSkySDataUnit</em> object will use DepSky-A (data is replicated in clear_text). To use one of the others three protocols follow the code below.</p>
+
+<div class="highlight highlight-java"><pre>  <span class="pl-smi">DepSkySDataUnit</span> dataUnit <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">DepSkySDataUnit</span>(<span class="pl-s"><span class="pl-pds">"</span>container<span class="pl-pds">"</span></span>);
+  dataUnit<span class="pl-k">.</span>setUsingPVSS(<span class="pl-c1">true</span>); <span class="pl-c">//to use DepSky-CA</span>
+  dataUnit<span class="pl-k">.</span>setUsingErsCodes(<span class="pl-c1">true</span>); <span class="pl-c">//to use only erasure codes</span>
+  dataUnit<span class="pl-k">.</span>setUsingSecSharing(<span class="pl-c1">true</span>); <span class="pl-c">//to use only secret sharing</span></pre></div>
+
+<p>When you want to perform operations in the <em>LocalDepSkySClient</em> object (<em>read</em>, <em>write</em>, etc) you have to use a <em>DepSkySDataUnit</em> object.</p>
+
+<h4>
+<a id="write" class="anchor" href="#write" aria-hidden="true"><span class="octicon octicon-link"></span></a>Write</h4>
+
+<p>When you want to use the write operation, you have to pass the <em>DepSkySDataUnit</em> object for which you want to write and the data to be written. As we can see below, this operation return a <em>byte[]</em>. This <em>byte[]</em> is a SHA-1 hash of the written data. This hash must be saved by the client if he want to use the read matching operation (see bellow).</p>
+
+<div class="highlight highlight-java"><pre>  <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">byte</span>[] write(<span class="pl-smi">DepSkySDataUnit</span> reg, <span class="pl-k">byte</span>[] value) throws <span class="pl-smi">Exception</span> {
+  <span class="pl-c1">...</span></pre></div>
+
+<h4>
+<a id="read" class="anchor" href="#read" aria-hidden="true"><span class="octicon octicon-link"></span></a>Read</h4>
+
+<p>To use this operation, you only have as argument the <em>DepSkySDataUnit</em> object. This operation will read the last version written to this <em>DepSkySDataUnit</em>.</p>
+
+<div class="highlight highlight-java"><pre>  <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">byte</span>[] read(<span class="pl-smi">DepSkySDataUnit</span> reg) throws <span class="pl-smi">Exception</span> {
+  <span class="pl-c1">...</span></pre></div>
+
+<h4>
+<a id="read-matching" class="anchor" href="#read-matching" aria-hidden="true"><span class="octicon octicon-link"></span></a>Read Matching</h4>
+
+<p>This operation have the function of read a old version of a given <em>DepSkySDataUnit</em>. To do that you have to pass a <em>byte[]</em> containing the hash of the version you want to read. This hash is the one returned by the write operation.</p>
+
+<div class="highlight highlight-java"><pre>  <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">byte</span>[] readMatching(<span class="pl-smi">DepSkySDataUnit</span> reg, <span class="pl-k">byte</span>[] hashMatching) throws <span class="pl-smi">Exception</span>{
+  <span class="pl-c1">...</span></pre></div>
+
+<h4>
+<a id="delete" class="anchor" href="#delete" aria-hidden="true"><span class="octicon octicon-link"></span></a>Delete</h4>
+
+<p>The delete operation will delete all the files associated with the given <em>DepSkySDataUnit</em>, that includes all the versions written and the metadata file.</p>
+
+<div class="highlight highlight-java"><pre>  <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> deleteContainer(<span class="pl-smi">DepSkySDataUnit</span> reg) throws <span class="pl-smi">Exception</span>{
+  <span class="pl-c1">...</span></pre></div>
+
+<h4>
+<a id="setacl" class="anchor" href="#setacl" aria-hidden="true"><span class="octicon octicon-link"></span></a>SetAcl</h4>
+
+<p>The setacl operation will change the permissions of a specified <em>DepSkySDataUnit</em>. Specifically, it will change the permissions of the bucket where the objects are stored, as well as the permissions of the objects within it. For do that we have to share the bucket in the four used clouds (once the data is replicated among them). The protocols to share a bucket in the used clouds can be found in this <a href="http://www.navigators.di.fc.ul.pt/w2/img_auth.php/d/de/Oliveira2014DIHC.pdf">paper</a>.</p>
+
+<div class="highlight highlight-java"><pre>  <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">LinkedList&lt;<span class="pl-k">Pair&lt;<span class="pl-smi">String</span>, <span class="pl-k">String</span>[]&gt;</span>&gt;</span> setAcl(<span class="pl-smi">DepSkySDataUnit</span> reg, <span class="pl-smi">String</span> permission,                                      
+     <span class="pl-k">LinkedList&lt;<span class="pl-k">Pair&lt;<span class="pl-smi">String</span>, <span class="pl-k">String</span>[]&gt;</span>&gt;</span> cannonicalIds) throws <span class="pl-smi">Exception</span> {
+  <span class="pl-c1">...</span></pre></div>
+
+<p>The operation receives 3 arguments. The first corresponds to the <em>DepSkySDataUnit</em> that will be shared. The second specifies the permission that other users will have to access the specified DepSkySDataUnit. It can be "r" for read, "w" for write, and "rw" for read and write. The last field has information about the user who will have access to the shared resource. This last field must be constructed following the example below where each line represent an entry in the LinkedList (which is a Pair).</p>
+
+<pre><code> -&gt; &lt;"AMAZON-S3", [canonicalId]&gt;
+ -&gt; &lt;"GOOGLE-STORAGE", [email]&gt;
+ -&gt; &lt;"RACKSPACE", [name, email]&gt;
+ -&gt; &lt;"WINDOWS-AZURE", []&gt;
+</code></pre>
+
+<p>For Amazon S3, the grantee user can find the canonicalId in the same page of the access credential (see the beginning of this page). For the other clouds, the information is quite intuitive. For Google Storage is only need the email of the grantee (must be a gmail account). For RackSpace the name and the grantee. Finally, for Windows Azure nothing is needed (see this <a href="http://www.navigators.di.fc.ul.pt/w2/img_auth.php/d/de/Oliveira2014DIHC.pdf">paper</a>).</p>
+
+<p>This operation returns a <em>LinkedList&gt;</em> with the same organization of the one given as argument.
+This list must be given to the grantee user, as well as the name of the <em>DepSkySDataUnit</em> in order he can access the shared resource. But first the user who is sharing must add to it some information.
+More specifically, he must add to the AMAZON-S3 pair his own cannonicalID, and to the GOOGLE-STORAGE pair his email.</p>
+
+<p>Once the grantee user have this list with he, he can use it in the other operations (<em>read</em>, <em>write</em>, <em>delete</em>) to operate on the shared bucket.</p>
+
       <footer class="site-footer">
         <span class="site-footer-owner"><a href="https://github.com/cloud-of-clouds/depsky">DepSky</a> is maintained by <a href="https://github.com/cloud-of-clouds">cloud-of-clouds</a>.</span>
 
