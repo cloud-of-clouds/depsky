@@ -116,17 +116,18 @@ To do that follow the links below:</p>
 <p>The second argument indicates what protocol will be used to replicate the data. There are 4 possibilities:</p>
 
 <ul>
-<li>0 means that will be used DepSky-A (there is no erasure codes neither secret sharing).</li>
-<li>1 to use DepSky-CA (use erasure codes and secret sharing).</li>
-<li>2 for use only erasure codes.</li>
-<li>3 to use only secret sharing.</li>
+<li><p>0 means that will be used DepSky-A (there is no erasure codes neither secret sharing).</p></li>
+<li><p>1 to use DepSky-CA (use erasure codes and secret sharing).</p></li>
+<li><p>2 for use only erasure codes.</p></li>
+<li><p>3 to use only secret sharing.</p></li>
 </ul>
 </li>
-<li>The third argument indicated the storage location.
+<li>
+<p>The third argument indicated the storage location.</p>
 
 <ul>
-<li>0 if you want to use cloud storage to replicate the data.</li>
-<li>1 if you want to store all the data locally (testing purposes). If you want to use the local storage you need first run the server that can be found in <em>src.depskys.clouds.drivers.localStorageService.ServerThread</em>. To run this server you can use the <em>Run_LocalStorage.sh</em> script at the root fo the project. This server will receive all requests at ip <em>127.0.0.1</em> and port <em>5555</em>.</li>
+<li><p>0 if you want to use cloud storage to replicate the data.</p></li>
+<li><p>1 if you want to store all the data locally (testing purposes). If you want to use the local storage you need first run the server that can be found in <em>src.depskys.clouds.drivers.localStorageService.ServerThread</em>. To run this server you can use the <em>Run_LocalStorage.sh</em> script at the root fo the project. This server will receive all requests at ip <em>127.0.0.1</em> and port <em>5555</em>.</p></li>
 </ul>
 </li>
 </ul>
