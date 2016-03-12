@@ -90,10 +90,10 @@ public class LocalDepSkySClient implements IDepSkySProtocol{
 		this.clientId = clientId;
 		DepSkySKeyLoader keyLoader = new DepSkySKeyLoader(null);
 		if(!useModel){
-			this.cloud1 = new LocalDiskDriver("cloud1");
-			this.cloud2 = new LocalDiskDriver("cloud2");
-			this.cloud3 = new LocalDiskDriver("cloud3");
-			this.cloud4 = new LocalDiskDriver("cloud4");
+			this.cloud1 = new LocalDiskDriver("cloud1", null);
+			this.cloud2 = new LocalDiskDriver("cloud2", null);
+			this.cloud3 = new LocalDiskDriver("cloud3", null);
+			this.cloud4 = new LocalDiskDriver("cloud4", null);
 			this.drivers = new IDepSkySDriver[]{cloud1, cloud2, cloud3, cloud4};
 		}else{	
 			List<String[][]> credentials = null;

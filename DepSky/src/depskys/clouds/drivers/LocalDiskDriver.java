@@ -29,9 +29,11 @@ public class LocalDiskDriver implements IDepSkySDriver {
 	public LocalDiskDriver() {
 	}
 
-	public LocalDiskDriver(String driverpath) {
+	public LocalDiskDriver(String driverpath, String ip) {
+		if(ip==null || ip.equals(""))
+			ip = "127.0.0.1";
 		try {
-			socket = new Socket("127.0.0.1", 5555);
+			socket = new Socket(ip, 5555);
 			out = new ObjectOutputStream(socket.getOutputStream());
 			in = new ObjectInputStream(socket.getInputStream());
 

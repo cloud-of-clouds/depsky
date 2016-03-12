@@ -7,6 +7,7 @@ import rackspace.RackSpaceDriver;
 import amazon.AmazonS3Driver;
 import azure.WindowsAzureDriver;
 import depskyDep.IDepSkySDriver;
+import depskys.clouds.drivers.LocalDiskDriver;
 import exceptions.StorageCloudException;
 import google.GoogleStorageDriver;
 
@@ -39,6 +40,8 @@ public class DriversFactory {
 			res = new WindowsAzureDriver(driverId, accessKey, secretKey);
 		}else if(type.equals("RACKSPACE")){
 			res = new RackSpaceDriver(driverId, accessKey, secretKey);
+		}else if(type.equals("LOCAL")){
+			res = new LocalDiskDriver(driverId, accessKey);
 		}
 
 		return res;
